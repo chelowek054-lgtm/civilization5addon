@@ -258,6 +258,8 @@ class Overlay:
         dpg.setup_dearpygui()
         dpg.show_viewport()
         dpg.set_primary_window("main", True)
+        # the window is sized to its content (fit_height), so it never needs to scroll
+        dpg.configure_item("main", no_scrollbar=True, no_scroll_with_mouse=True)
         set_alpha(ALPHAS[self.alpha_i])
         self.apply_mode()
 
@@ -360,6 +362,16 @@ class Overlay:
 
     # ---------- modes, hotkey, position ----------
 
+    def fit_height(self):
+        """Grow or shrink the window to its content: long tips wrap onto more
+        lines, and display scaling changes text height — no scrollbar either way."""
+        if self.mode == "hidden" or not dpg.is_item_visible("next"):
+            return
+        bottom = dpg.get_item_rect_max("next")[1]   # primary window starts at the viewport's top
+        want = int(bottom) + 10
+        if want > 40 and abs(want - dpg.get_viewport_height()) > 2:
+            dpg.set_viewport_height(want)
+
     def apply_mode(self):
         self.save()   # remember the position while the window is still visible
         if self.mode != "hidden":
@@ -395,11 +407,28 @@ class Overlay:
         if hwnd and not self.game_fullscreen and self.settings.get("borderless_game", True):
             gamewindow.make_borderless(hwnd)
 
+    def follow_game(self):
+        """Windowed game: keep the panel above it. Exclusive fullscreen: never fight
+        the game for the screen (that makes it flicker in and out of fullscreen) —
+        hide while the game has focus, show again when you Alt+Tab out."""
+        if self.mode == "hidden":
+            return
+        if getattr(self, "game_fullscreen", False):
+            hwnd, _ = gamewindow.find_game()
+            import ctypes
+            game_focused = bool(hwnd) and ctypes.windll.user32.GetForegroundWindow() == hwnd
+            if game_focused == window_visible():
+                show_window(not game_focused)
+            return
+        if not window_visible():
+            show_window(True)   # back from fullscreen auto-hide
+        keep_on_top()
+
     def game_window_problem(self):
         if getattr(self, "game_fullscreen", False):
-            return "yellow", ("Игра в полноэкранном режиме — панель не может быть поверх неё. "
-                              "Настройки → Видео: снимите «Полноэкранный режим»; "
-                              "панель сама растянет окно игры на весь экран без рамки.")
+            return "yellow", ("Игра в полноэкранном режиме: панель прячется, пока вы в игре, "
+                              "и видна только по Alt+Tab. Чтобы видеть её поверх игры: "
+                              "Настройки → Видео, снимите «Полноэкранный режим».")
         return None
 
     def maybe_drag(self):
@@ -472,9 +501,10 @@ class Overlay:
                 self.refresh(force=self.data.series == {} or was_fullscreen != self.game_fullscreen)
             if now - last_top > 0.3:
                 last_top = now
-                keep_on_top()
+                self.follow_game()
             self.check_hotkey()
             dpg.render_dearpygui_frame()
+            self.fit_height()
         self.save()
         dpg.destroy_context()
 
