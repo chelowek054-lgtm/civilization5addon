@@ -182,6 +182,15 @@ class Data:
             changed = True
         return changed
 
+    def until(self, turn):
+        """Read-only copy of the data as it was on `turn` (for the turn slider)."""
+        snap = Data.__new__(Data)
+        snap.path, snap.pos, snap.archive = self.path, self.pos, None
+        snap.series = {p: {t: s for t, s in ts.items() if t <= turn} for p, ts in self.series.items()}
+        snap.series = {p: ts for p, ts in snap.series.items() if ts}
+        snap.names, snap.met, snap.me = self.names, self.met, self.me
+        return snap
+
     @staticmethod
     def is_session_start(line):
         return "Initializing Lua" in line
@@ -224,21 +233,21 @@ class App:
         self.status = ttk.Label(bar, text="")
         self.status.pack(side="right")
 
-        # Overlay controls: keep window above the game, transparency, compact layout
+        # Turn slider: look at the game as it was on any past turn
         bar2 = ttk.Frame(root, padding=(6, 0, 6, 4))
         bar2.pack(fill="x")
-        self.topmost = tk.BooleanVar(value=True)
-        ttk.Checkbutton(bar2, text="Поверх всех окон", variable=self.topmost,
-                        command=self.apply_topmost).pack(side="left")
-        ttk.Label(bar2, text="Прозрачность:").pack(side="left", padx=(12, 4))
-        self.alpha = tk.DoubleVar(value=0.9)
-        ttk.Scale(bar2, from_=0.3, to=1.0, variable=self.alpha, length=120,
-                  command=lambda v: root.attributes("-alpha", float(v))).pack(side="left")
         self.compact = tk.BooleanVar(value=False)
         ttk.Checkbutton(bar2, text="Компактно", variable=self.compact,
-                        command=self.toggle_compact).pack(side="left", padx=12)
-        root.attributes("-alpha", self.alpha.get())
-        self.apply_topmost()
+                        command=self.toggle_compact).pack(side="left")
+        ttk.Label(bar2, text="Ход:").pack(side="left", padx=(16, 4))
+        self.turn = None          # None = follow the latest turn
+        self.turn_job = None
+        self.turn_scale = tk.Scale(bar2, from_=0, to=0, orient="horizontal", showvalue=True,
+                                   resolution=1, command=self.on_turn)
+        self.turn_scale.pack(side="left", fill="x", expand=True)
+        ttk.Button(bar2, text="◀", width=3, command=lambda: self.step_turn(-1)).pack(side="left")
+        ttk.Button(bar2, text="▶", width=3, command=lambda: self.step_turn(1)).pack(side="left")
+        ttk.Button(bar2, text="Последний", command=self.latest_turn).pack(side="left", padx=(4, 0))
 
         self.body = ttk.Frame(root)
         self.body.pack(fill="both", expand=True)
@@ -285,6 +294,7 @@ class App:
         self.game_box["values"] = [LIVE_LABEL] + list(self.saved_paths)
 
     def open_game(self):
+        self.turn = None
         path = self.saved_paths.get(self.game.get())
         if path is None:
             self.data = self.live
@@ -293,8 +303,21 @@ class App:
             self.data.poll()
         self.redraw()
 
-    def apply_topmost(self):
-        self.root.attributes("-topmost", self.topmost.get())
+    def on_turn(self, value):
+        """Slider moved: remember the turn and redraw shortly after (debounced)."""
+        t = int(float(value))
+        lt = self.data.last_turn()
+        self.turn = None if lt is None or t >= lt else t
+        if self.turn_job:
+            self.root.after_cancel(self.turn_job)
+        self.turn_job = self.root.after(120, self.redraw)
+
+    def step_turn(self, delta):
+        self.turn_scale.set(int(self.turn_scale.get()) + delta)
+
+    def latest_turn(self):
+        self.turn = None
+        self.redraw()
 
     def toggle_compact(self):
         if self.compact.get():
@@ -306,9 +329,6 @@ class App:
         self.redraw()
 
     def tick(self):
-        # some games steal the topmost flag when they get focus: reassert it
-        if self.topmost.get():
-            self.root.attributes("-topmost", True)
         if self.live.poll() and self.data is self.live:
             self.redraw()
         self.root.after(REFRESH_MS, self.tick)
@@ -318,9 +338,20 @@ class App:
         return n + " (вы)" if pid == self.data.me else n
 
     def redraw(self):
+        self.turn_job = None
         d = self.data
         lt = d.last_turn()
-        if d is not self.live:
+        turns = [t for s in d.series.values() for t in s]
+        self.turn_scale.configure(from_=min(turns) if turns else 0, to=lt or 0)
+        if self.turn is not None and lt is not None and self.turn >= lt:
+            self.turn = None
+        shown_turn = lt if self.turn is None else self.turn
+        if shown_turn is not None and int(self.turn_scale.get()) != shown_turn:
+            self.turn_scale.set(shown_turn)   # fires on_turn, which keeps the same state
+        self.shown = d if self.turn is None else d.until(self.turn)
+        if self.turn is not None:
+            self.status.config(text=f"Просмотр хода {self.turn} из {lt} · «Последний» — вернуться")
+        elif d is not self.live:
             self.status.config(text=f"Запись игры · до хода {lt if lt is not None else 0} · цивилизаций: {len(d.series)}")
         elif not os.path.exists(d.path):
             self.status.config(text="Lua.log не найден — запустите игру с LoggingEnabled = 1")
@@ -329,6 +360,7 @@ class App:
         else:
             self.status.config(text=f"Ход {lt} · цивилизаций: {len(d.series)}")
 
+        d = self.shown
         for w in (self.table, self.tree_frame, self.advice, self.canvas.get_tk_widget()):
             w.pack_forget()
         if self.view.get() == "Советник":
@@ -406,7 +438,7 @@ class App:
             self.draw_tree_view()
 
     def draw_tree_view(self):
-        d = self.data
+        d = self.shown
         pids = d.visible(self.show_all.get())
         idx = compute_indices(d.series, pids) if pids else {}
         lt = d.last_turn()
@@ -455,7 +487,7 @@ class App:
         self.canvas.draw_idle()
 
     def draw_advisor(self):
-        d = self.data
+        d = self.shown
         pids = d.visible(self.show_all.get())
         idx = compute_indices(d.series, pids) if pids else {}
         profile, warns = advisor.analyse(d, idx, pids)
@@ -512,7 +544,7 @@ class App:
         ax.xaxis.set_major_locator(MaxNLocator(integer=True))
 
     def draw_table(self):
-        d = self.data
+        d = self.shown
         cols = ["civ"] + [k for k, _ in METRICS]
         self.table.configure(columns=cols)
         self.table.heading("civ", text="Цивилизация")
