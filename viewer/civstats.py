@@ -13,8 +13,30 @@ from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 
 from metrics_tree import TREE, NODES, compute_indices
 
-LOG_PATH = os.path.join(os.path.expanduser("~"), "Documents", "My Games",
-                        "Sid Meier's Civilization 5", "Logs", "Lua.log")
+def find_log_path():
+    """Lua.log location: $CIVSTATS_LOG, else the first existing known place
+    (Windows, native Linux port, Proton), else the Windows default."""
+    if os.environ.get("CIVSTATS_LOG"):
+        return os.environ["CIVSTATS_LOG"]
+    home = os.path.expanduser("~")
+    user_dirs = [
+        os.path.join(home, "Documents", "My Games", "Sid Meier's Civilization 5"),
+        os.path.join(home, ".local", "share", "Aspyr", "Sid Meier's Civilization 5"),
+        os.path.join(home, ".local", "share", "Steam", "steamapps", "compatdata", "8930", "pfx",
+                     "drive_c", "users", "steamuser", "Documents", "My Games",
+                     "Sid Meier's Civilization 5"),
+    ]
+    candidates = [os.path.join(d, "Logs", "Lua.log") for d in user_dirs]
+    for c in candidates:
+        if os.path.exists(c):
+            return c
+    for d in user_dirs:  # game installed but no log yet
+        if os.path.isdir(d):
+            return os.path.join(d, "Logs", "Lua.log")
+    return candidates[0]
+
+
+LOG_PATH = find_log_path()
 
 METRICS = [
     ("score", "Счёт"), ("science", "Наука/ход"), ("goldRate", "Доход золота/ход"),
