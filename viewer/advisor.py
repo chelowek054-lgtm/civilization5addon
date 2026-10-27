@@ -99,6 +99,143 @@ def spike_eras(civ):
     return eras
 
 
+NEAR = 10          # tiles between nearest cities: closer than this is a neighbour
+FAR = 20
+
+# How each civ focus maps onto a metric-tree group
+FOCUS_GROUP = [("Завоевание", "g_military"), ("Наука", "g_science"), ("Культура", "g_culture"),
+               ("Религия", "g_faith"), ("Дипломатия", "g_economy"), ("Экономика", "g_economy"),
+               ("Широкая", "g_scale"), ("Любая", "g_scale")]
+
+# What raises each group (one line per group)
+GROUP_ACTIONS = {
+    "g_scale": "поселенцы на свободные земли, рост городов: фермы, амбары, излишек еды",
+    "g_economy": "рынки, торговые пути, дороги между городами, мастерские и шахты",
+    "g_science": "библиотеки → университеты, рост населения, научные договоры",
+    "g_culture": "монументы, амфитеатры, чудеса, великие произведения в слотах",
+    "g_faith": "святилища, храмы, пантеон и религия пораньше",
+    "g_stability": "новые виды роскоши (обмен с соседями), колизеи, храмы",
+    "g_military": "современные юниты на уровне эпохи, стены и стрелки в пограничных городах",
+}
+GROUP_LABELS = {g.key: g.label for g in TREE.children}
+
+
+def rivals(data, idx, pids):
+    """One dict per met rival on the latest shown turn, nearest first."""
+    me = data.me
+    if me is None or me not in data.series or not data.series[me]:
+        return []
+    t = max(data.series[me])
+    s = data.series[me][t]
+    my_mil = s.get("military", 0) or 1
+    out = []
+    for p in pids:
+        if p == me or t not in data.series[p]:
+            continue
+        r = data.series[p][t]
+        past = [x for x in data.series[p] if x <= t - 10]
+        mil_then = data.series[p][past[-1]].get("military", 0) if past else None
+        groups = {g: idx[p][t].get(g) for g in GROUP_LABELS if g != "g_score" and t in idx.get(p, {})}
+        groups = {g: v for g, v in groups.items() if v is not None}
+        dist = r.get("dist")
+        out.append({
+            "pid": p, "name": data.names.get(p, str(p)),
+            "dist": None if dist is None or dist < 0 else int(dist),
+            "war": r.get("war", 0) >= 1,
+            "mil_ratio": r.get("military", 0) / my_mil,
+            "mil_growth": (r.get("military", 0) / mil_then - 1) if mil_then else None,
+            "overall": idx.get(p, {}).get(t, {}).get("overall", 0),
+            "best": max(groups, key=groups.get) if groups else None,
+            "groups": groups,
+        })
+    out.sort(key=lambda x: (x["dist"] is None, x["dist"] or 0))
+    return out
+
+
+def rival_role(rv):
+    """(level, short role) for one rival relative to you."""
+    near = rv["dist"] is not None and rv["dist"] <= NEAR
+    rising = (rv["mil_growth"] or 0) > 0.3
+    if rv["war"] and rv["mil_ratio"] > 1:
+        return "red", "война, он сильнее"
+    if rv["war"]:
+        return "yellow", "война"
+    if near and rv["mil_ratio"] > 1.5:
+        return "red" if rising else "yellow", "угроза рядом" + (", армия растёт" if rising else "")
+    if near and rv["mil_ratio"] < 0.6:
+        return "green", "слабый сосед — цель"
+    if rv["overall"] >= 75:
+        return "yellow", "лидер партии"
+    return "green", "нейтрально"
+
+
+def development_plan(data, idx, pids):
+    """Up to 5 prioritized lines: what to develop given your civ and the rivals."""
+    me = data.me
+    if me is None or me not in idx or not idx[me]:
+        return []
+    t = max(idx[me])
+    mine = idx[me][t]
+    civ = data.names.get(me, "")
+    focus, _ = STRATEGY.get(civ, ("", ""))
+    focus_group = next((g for k, g in FOCUS_GROUP if k in focus), None)
+    rv = rivals(data, idx, pids)
+    s = data.series[me][max(data.series[me])]
+    era = current_era(s)
+    plan = []
+
+    # 1. survival
+    threats = [r for r in rv if rival_role(r)[1].startswith(("угроза", "война, он"))]
+    if threats:
+        r = threats[0]
+        where = f"в {r['dist']} клетках" if r["dist"] is not None else "рядом"
+        plan.append(f"Оборона прежде всего: {r['name']} {where}, армия ×{r['mil_ratio']:.1f} от вашей. "
+                    f"Стены и стрелки в ближних городах, дружба или договор о границах с ним.")
+
+    # 2. foundation
+    if mine.get("g_scale", 100) < 40:
+        plan.append("Расширяйтесь: масштаб империи — основа всех остальных показателей. "
+                    + GROUP_ACTIONS["g_scale"].capitalize() + ".")
+
+    # 3. your civ's focus vs. the leader in that direction
+    if focus_group and focus_group in mine:
+        leader = max(rv, key=lambda r: r["groups"].get(focus_group, 0), default=None)
+        lead_v = leader["groups"].get(focus_group, 0) if leader else 0
+        if leader and lead_v - mine[focus_group] > 40:
+            plan.append(f"Ваш фокус — {focus}, но здесь далеко впереди {leader['name']} "
+                        f"({lead_v:.0f} против {mine[focus_group]:.0f}). Догоняйте "
+                        f"({GROUP_ACTIONS.get(focus_group, '')}) или смените путь к победе.")
+        else:
+            plan.append(f"Держитесь фокуса «{focus}»: {GROUP_ACTIONS.get(focus_group, '')}.")
+
+    # 4. a weak neighbour is an opportunity, especially in your power window
+    prey = [r for r in rv if rival_role(r)[1].startswith("слабый")]
+    if prey:
+        r = prey[0]
+        spike = era in spike_eras(civ)
+        plan.append(f"Возможность: {r['name']} в {r['dist']} клетках с армией {r['mil_ratio']:.0%} от вашей"
+                    + (" — сейчас ваш пик, лучшее время для захвата." if spike else
+                       " — можно расшириться за его счёт или требовать уступок."))
+
+    # 5. a runaway leader
+    leader = max(rv, key=lambda r: r["overall"], default=None)
+    if leader and leader["overall"] - mine.get("overall", 0) > 30:
+        lg = GROUP_LABELS.get(leader["best"], "")
+        plan.append(f"{leader['name']} уходит в отрыв (сила {leader['overall']:.0f}, сильнее всего в «{lg}»). "
+                    "Не соревнуйтесь с ним там; объединяйтесь с другими против него.")
+
+    # 6. build on your best side
+    groups = {g: v for g, v in mine.items() if g in GROUP_LABELS and g != "g_score"}
+    if groups:
+        best = max(groups, key=groups.get)
+        weak = min(groups, key=groups.get)
+        if groups[best] >= 50:
+            plan.append(f"Ваша сильная сторона — «{GROUP_LABELS[best]}» ({groups[best]:.0f}): стройте стратегию на ней.")
+        if len(plan) < 5 and groups[weak] < 25 and weak != best:
+            plan.append(f"Подтяните «{GROUP_LABELS[weak]}» ({groups[weak]:.0f}): {GROUP_ACTIONS.get(weak, '')}.")
+    return plan[:5]
+
+
 def _rank(values, mine, higher_is_better=True):
     better = sum(1 for v in values if (v > mine if higher_is_better else v < mine))
     return better + 1
@@ -112,8 +249,8 @@ def analyse(data, idx, pids):
     civ = data.names.get(me, "")
     t = max(data.series[me])
     s = data.series[me][t]
-    rivals = [p for p in pids if p != me and t in data.series[p]]
-    rs = [data.series[p][t] for p in rivals]
+    rival_ids = [p for p in pids if p != me and t in data.series[p]]
+    rs = [data.series[p][t] for p in rival_ids]
     era = current_era(s)
     warns = []
 
@@ -204,6 +341,13 @@ def analyse(data, idx, pids):
         if groups:
             weak = min(groups)
             warns.append(("yellow" if weak[0] < 30 else "green", f"Слабейшее направление: «{weak[1]}» (индекс {weak[0]:.0f})."))
+
+    # --- neighbours ---
+    for rv in rivals(data, idx, pids):
+        level, role = rival_role(rv)
+        if level == "red":
+            where = f"в {rv['dist']} клетках" if rv["dist"] is not None else ""
+            warns.append(("red", f"{rv['name']} {where}: {role} (армия ×{rv['mil_ratio']:.1f} от вашей)."))
 
     if not any(lvl == "red" for lvl, _ in warns):
         warns.append(("green", "Красных сигналов нет."))

@@ -500,6 +500,28 @@ class App:
         for level, msg in warns:
             txt.insert("end", icons[level] + " ", level)
             txt.insert("end", msg + "\n")
+
+        plan = advisor.development_plan(d, idx, pids)
+        if plan:
+            txt.insert("end", "\nКак развиваться\n", "h")
+            for n, line in enumerate(plan, 1):
+                txt.insert("end", f"{n}. {line}\n")
+
+        rv = advisor.rivals(d, idx, pids)
+        if rv:
+            txt.insert("end", "\nСоседи и соперники\n", "h")
+            if all(r["dist"] is None for r in rv):
+                txt.insert("end", "Расстояний пока нет: они появятся в новой записи после "
+                                  "переустановки логгера и когда вы увидите их города.\n")
+            for r in rv:
+                level, role = advisor.rival_role(r)
+                dist = "?" if r["dist"] is None else f"{r['dist']} кл."
+                growth = "" if r["mil_growth"] is None else f", армия {r['mil_growth']:+.0%} за 10 ходов"
+                best = advisor.GROUP_LABELS.get(r["best"], "—")
+                txt.insert("end", "● ", level)
+                txt.insert("end", f"{r['name']} — {dist}, {role}. Сила {r['overall']:.0f}, "
+                                  f"армия ×{r['mil_ratio']:.1f} от вашей{growth}; "
+                                  f"сильнее всего: {best}.\n")
         if profile:
             txt.insert("end", "\nВаша цивилизация\n", "h")
             txt.insert("end", "\n".join(profile) + "\n")

@@ -91,6 +91,29 @@ local function collect(p, pTeam)
 	return s
 end
 
+-- Relation of a rival to the active player. Distance only counts rival cities
+-- the active player has already revealed on the map, so nothing hidden leaks.
+--   dist = tiles between your nearest city and their nearest known city (-1 = none known)
+--   war  = 1 if at war with you
+local function relation(pMe, myTeam, p, team)
+	local r = { dist = -1, war = 0, knownCities = 0 }
+	r.war = safe(function() return myTeam:IsAtWar(team) and 1 or 0 end)
+	local myTeamId = pMe:GetTeam()
+	local best = -1
+	for c in p:Cities() do
+		local plot = c:Plot()
+		if plot and plot:IsRevealed(myTeamId, false) then
+			r.knownCities = r.knownCities + 1
+			for mc in pMe:Cities() do
+				local d = Map.PlotDistance(mc:GetX(), mc:GetY(), c:GetX(), c:GetY())
+				if best < 0 or d < best then best = d end
+			end
+		end
+	end
+	r.dist = best
+	return r
+end
+
 local function LogTurn()
 	local turn = Game.GetGameTurn()
 	local me = Game.GetActivePlayer()
@@ -103,7 +126,11 @@ local function LogTurn()
 			local met = (i == me) or myTeam:IsHasMet(team)
 			local name = Locale.ConvertTextKey(GameInfo.Civilizations[p:GetCivilizationType()].ShortDescription)
 			local parts = {}
-			for k, v in pairs(collect(p, Teams[team])) do
+			local s = collect(p, Teams[team])
+			if i ~= me then
+				for k, v in pairs(relation(Players[me], myTeam, p, team)) do s[k] = v end
+			end
+			for k, v in pairs(s) do
 				parts[#parts + 1] = k .. "=" .. tostring(v)
 			end
 			print(string.format("CIVSTATS|%d|%d|%d|%d|%s|%s",
