@@ -1,4 +1,4 @@
-﻿"""Compact in-game overlay (Dear PyGui): one graph, the must-watch numbers and
+"""Compact in-game overlay (Dear PyGui): one graph, the must-watch numbers and
 a one-line tip. Sits on the left edge under the science panel, borderless,
 always on top. The full analysis window (civstats.py) opens with the "+" button.
 
@@ -81,6 +81,20 @@ def show_window(visible):
     if IS_WIN:
         import ctypes
         ctypes.windll.user32.ShowWindow(_hwnd(), 4 if visible else 0)   # SW_SHOWNOACTIVATE / SW_HIDE
+
+
+def keep_on_top():
+    """Put the panel back above the game. Civ 5 in (borderless) windowed mode
+    raises itself over 'always on top' windows when you click into it, so the
+    flag alone is not enough; this runs a few times a second and never steals
+    focus. Exclusive fullscreen still covers everything — use windowed mode."""
+    if not IS_WIN:
+        return
+    import ctypes
+    h = _hwnd()
+    if h and ctypes.windll.user32.IsWindowVisible(h):
+        # HWND_TOPMOST, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE | SWP_NOOWNERZORDER
+        ctypes.windll.user32.SetWindowPos(h, -1, 0, 0, 0, 0, 0x0002 | 0x0001 | 0x0010 | 0x0200)
 
 
 def window_visible():
@@ -422,11 +436,15 @@ class Overlay:
 
     def run(self):
         self.refresh(force=True)
+        last_top = 0.0
         while dpg.is_dearpygui_running():
             now = time.monotonic()
             if now - self.last_poll > REFRESH_S:
                 self.last_poll = now
                 self.refresh(force=self.data.series == {})   # keep the setup status fresh
+            if now - last_top > 0.3:
+                last_top = now
+                keep_on_top()
             self.check_hotkey()
             dpg.render_dearpygui_frame()
         self.save()

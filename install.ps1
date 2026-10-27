@@ -23,6 +23,13 @@ if ($Uninstall) {
 }
 
 Copy-Item "$PSScriptRoot\game\UI\CivStatsLogger.lua", "$PSScriptRoot\game\UI\CivStatsLogger.xml" $ui -Force
+# The game's Lua 5.1 fails on a UTF-8 BOM ("unexpected symbol near '�'"): make sure there is none
+foreach ($f in "$ui\CivStatsLogger.lua", "$ui\CivStatsLogger.xml") {
+    $b = [IO.File]::ReadAllBytes($f)
+    if ($b.Length -ge 3 -and $b[0] -eq 0xEF -and $b[1] -eq 0xBB -and $b[2] -eq 0xBF) {
+        [IO.File]::WriteAllBytes($f, $b[3..($b.Length - 1)])
+    }
+}
 
 if (-not (Test-Path $backup)) { Copy-Item $inGame $backup }
 $xml = Get-Content $backup -Raw

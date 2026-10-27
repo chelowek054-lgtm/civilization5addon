@@ -1,4 +1,4 @@
-﻿"""Civ Stats viewer: tails Civ 5 Lua.log and draws live per-turn graphs."""
+"""Civ Stats viewer: tails Civ 5 Lua.log and draws live per-turn graphs."""
 import datetime
 import os
 import sys

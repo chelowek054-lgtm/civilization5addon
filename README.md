@@ -1,4 +1,4 @@
-﻿# Civ 5 Stats
+# Civ 5 Stats
 
 [English](#english) · [Русский](#русский)
 

@@ -1,4 +1,4 @@
-﻿-- CivStatsLogger: writes per-turn stats of every major civ to Lua.log.
+-- CivStatsLogger: writes per-turn stats of every major civ to Lua.log.
 -- Only reads game state, so it never causes multiplayer desyncs.
 -- Line format: CIVSTATS|turn|playerId|isMe|met|civName|key=value;key=value;...
 

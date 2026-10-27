@@ -55,6 +55,8 @@ if [ "$UNINSTALL" = 1 ]; then
 fi
 
 cp -f "$SCRIPT_DIR/game/UI/CivStatsLogger.lua" "$SCRIPT_DIR/game/UI/CivStatsLogger.xml" "$UI_DIR/"
+# The game's Lua 5.1 fails on a UTF-8 BOM: strip it if an editor added one
+sed -i '1s/^\xEF\xBB\xBF//' "$UI_DIR/CivStatsLogger.lua" "$UI_DIR/CivStatsLogger.xml"
 [ -f "$BACKUP" ] || cp "$IN_GAME_XML" "$BACKUP"
 
 # Copy of the original InGame.xml with our hidden context before the last </Context>

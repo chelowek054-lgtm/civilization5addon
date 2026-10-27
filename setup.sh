@@ -1,4 +1,4 @@
-﻿#!/usr/bin/env bash
+#!/usr/bin/env bash
 # Creates .venv in the project folder and installs the Python dependencies.
 # tkinter comes from the system (python3-tk / python3-tkinter / tk).
 set -euo pipefail

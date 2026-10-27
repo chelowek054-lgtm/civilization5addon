@@ -1,4 +1,4 @@
-﻿"""In-game advisor: civ profile, power-spike windows and "you are doing it wrong" warnings.
+"""In-game advisor: civ profile, power-spike windows and "you are doing it wrong" warnings.
 
 Civ facts (traits, unique units/buildings, the tech and era that unlock them)
 come from civ_data.json, extracted from the game's own database

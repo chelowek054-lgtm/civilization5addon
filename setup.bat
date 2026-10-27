@@ -1,4 +1,4 @@
-﻿@echo off
+@echo off
 rem Creates .venv in the project folder and installs the Python dependencies.
 cd /d "%~dp0"
 if not exist .venv\Scripts\python.exe python -m venv .venv || goto :error
