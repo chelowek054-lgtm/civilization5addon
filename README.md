@@ -1,4 +1,4 @@
-# Civ 5 Stats
+﻿# Civ 5 Stats
 
 Live graphs and strategy analysis for **Sid Meier's Civilization V: Brave New World**.
 
@@ -17,7 +17,8 @@ and other players don't need to install it.
   see it per turn for every civ, plus what your own index is made of.
 - **Dashboard**, single-metric graphs and a summary table.
 - **Overlay mode** — always on top, adjustable transparency, compact side panel.
-- **Automatic game archive** — every game is saved to `games/` while the viewer runs.
+- **Automatic game archive** — every game is saved to `saves/` while the viewer runs.
+- **Game history** — pick any saved game from the *Игра* (Game) list to analyse it; the current game keeps being recorded in the background.
 - Civs you haven't met are hidden by default.
 
 ## Requirements
@@ -68,10 +69,10 @@ Run `install.ps1` again.
 
 ## Viewing a recorded game
 
-Drag a file from `games/` onto `run_viewer.bat`, or:
+Choose it in the *Игра* (Game) drop-down at the top of the window (newest first, `▶ Текущая игра` is the live game). You can also drag a file from `saves/` onto `run_viewer.bat`, or:
 
 ```bash
-python viewer/civstats.py games/<file>.log
+python viewer/civstats.py saves/<file>.log
 ```
 
 ## Project layout

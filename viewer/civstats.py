@@ -24,7 +24,8 @@ METRICS = [
     ("happiness", "Довольство"), ("land", "Территория (клетки)"), ("units", "Юниты"),
 ]
 DASHBOARD = ["score", "science", "goldRate", "military", "culture", "population"]
-ARCHIVE_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "games")
+ARCHIVE_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "saves")
+LIVE_LABEL = "▶ Текущая игра"
 REFRESH_MS = 2000
 
 
@@ -92,6 +93,7 @@ class Archive:
                 name = f"{datetime.date.today():%Y-%m-%d}_{rec[4]}_{self.game}.log"
                 self.f = open(os.path.join(self.folder, name), "w", encoding="utf-8")
                 self.f.write("\n".join(self.buffer + [line]) + "\n")
+                self.f.flush()
                 self.buffer = []
             else:
                 self.buffer.append(line)
@@ -171,12 +173,21 @@ class Data:
 class App:
     def __init__(self, root, path):
         self.root = root
-        self.data = Data(path)
+        # The live log is always polled (so games keep being archived) even
+        # while a saved game from history is on screen.
+        self.live = Data(LOG_PATH)
+        self.data = self.live
         root.title("Civ 5 — статистика")
         root.geometry("1280x820")
 
         bar = ttk.Frame(root, padding=6)
         bar.pack(fill="x")
+        ttk.Label(bar, text="Игра:").pack(side="left")
+        self.game = tk.StringVar(value=LIVE_LABEL)
+        self.game_box = ttk.Combobox(bar, textvariable=self.game, state="readonly", width=34,
+                                     postcommand=self.refresh_games)
+        self.game_box.pack(side="left", padx=(6, 12))
+        self.game_box.bind("<<ComboboxSelected>>", lambda e: self.open_game())
         ttk.Label(bar, text="Вид:").pack(side="left")
         self.view = tk.StringVar(value="Дерево")
         choices = ["Дерево", "Панель"] + [label for _, label in METRICS] + ["Таблица"]
@@ -212,9 +223,35 @@ class App:
         self.table = ttk.Treeview(self.body, show="headings")
         self.build_tree()
 
-        self.data.poll()
+        self.live.poll()
+        self.refresh_games()
+        if path != LOG_PATH:  # a saved game passed on the command line
+            self.game.set(os.path.splitext(os.path.basename(path))[0])
+            self.saved_paths[self.game.get()] = path
+            self.open_game()
         self.redraw()
         root.after(REFRESH_MS, self.tick)
+
+    def refresh_games(self):
+        """Fills the game list: live game first, then saves/ newest first."""
+        self.saved_paths = {}
+        try:
+            files = [f for f in os.listdir(ARCHIVE_DIR) if f.endswith(".log")]
+        except OSError:
+            files = []
+        files.sort(key=lambda f: os.path.getmtime(os.path.join(ARCHIVE_DIR, f)), reverse=True)
+        for f in files:
+            self.saved_paths[os.path.splitext(f)[0]] = os.path.join(ARCHIVE_DIR, f)
+        self.game_box["values"] = [LIVE_LABEL] + list(self.saved_paths)
+
+    def open_game(self):
+        path = self.saved_paths.get(self.game.get())
+        if path is None:
+            self.data = self.live
+        else:
+            self.data = Data(path)
+            self.data.poll()
+        self.redraw()
 
     def apply_topmost(self):
         self.root.attributes("-topmost", self.topmost.get())
@@ -232,7 +269,7 @@ class App:
         # some games steal the topmost flag when they get focus: reassert it
         if self.topmost.get():
             self.root.attributes("-topmost", True)
-        if self.data.poll():
+        if self.live.poll() and self.data is self.live:
             self.redraw()
         self.root.after(REFRESH_MS, self.tick)
 
@@ -243,7 +280,9 @@ class App:
     def redraw(self):
         d = self.data
         lt = d.last_turn()
-        if not os.path.exists(d.path):
+        if d is not self.live:
+            self.status.config(text=f"Запись игры · до хода {lt if lt is not None else 0} · цивилизаций: {len(d.series)}")
+        elif not os.path.exists(d.path):
             self.status.config(text="Lua.log не найден — запустите игру с LoggingEnabled = 1")
         elif lt is None:
             self.status.config(text="Ждём данных из игры…")
