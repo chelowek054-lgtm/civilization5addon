@@ -204,14 +204,14 @@ class Data:
 
 
 class App:
-    def __init__(self, root, path, view=None, node=None, archive=True):
+    def __init__(self, root, path, view=None, node=None, archive=True, beside=None):
         self.root = root
         # The live log is always polled (so games keep being archived) even
         # while a saved game from history is on screen.
         self.live = Data(LOG_PATH, archive=archive)
         self.data = self.live
         root.title("Civ 5 — статистика")
-        root.geometry("1280x820")
+        self.place_window(beside)
 
         bar = ttk.Frame(root, padding=6)
         bar.pack(fill="x")
@@ -251,12 +251,18 @@ class App:
 
         self.body = ttk.Frame(root)
         self.body.pack(fill="both", expand=True)
-        self.fig = Figure(figsize=(12, 7), dpi=100)
+        # Match the screen DPI so charts are as readable as the rest of the window
+        self.fig = Figure(figsize=(12, 7), dpi=max(100, root.winfo_fpixels("1i")))
         self.canvas = FigureCanvasTkAgg(self.fig, master=self.body)
         self.table = ttk.Treeview(self.body, show="headings")
         self.build_tree()
-        self.advice = tk.Text(self.body, width=62, wrap="word", font=("Segoe UI", 10),
+        self.advice_frame = ttk.Frame(self.body)
+        self.advice = tk.Text(self.advice_frame, width=58, wrap="word", font=("Segoe UI", 10),
                               relief="flat", padx=8, pady=6)
+        adv_sb = ttk.Scrollbar(self.advice_frame, orient="vertical", command=self.advice.yview)
+        self.advice.configure(yscrollcommand=adv_sb.set)
+        adv_sb.pack(side="right", fill="y")
+        self.advice.pack(side="left", fill="both", expand=True)
         for tag, color in (("red", "#c62828"), ("yellow", "#b26a00"), ("green", "#2e7d32")):
             self.advice.tag_configure(tag, foreground=color)
         self.advice.tag_configure("h", font=("Segoe UI", 11, "bold"))
@@ -280,6 +286,24 @@ class App:
             self.view.set(view)
         self.redraw()
         root.after(REFRESH_MS, self.tick)
+
+    def place_window(self, beside):
+        """Default size, or — when opened from the overlay — right next to it,
+        filling the rest of the screen so the overlay never covers the window."""
+        sw, sh = self.root.winfo_screenwidth(), self.root.winfo_screenheight()
+        if not beside:
+            w, h = min(1280, sw - 40), min(820, sh - 80)
+            self.root.geometry(f"{w}x{h}")
+            return
+        left, top, right, bottom = beside
+        gap = 8
+        if right + gap + 900 <= sw:          # room on the right of the overlay
+            x, w = right + gap, sw - right - 2 * gap
+        else:                                # overlay is on the right side: go left
+            x, w = gap, max(900, left - 2 * gap)
+        y = max(0, top - 40)                 # leave space for the title bar
+        h = sh - y - 60                      # keep clear of the taskbar
+        self.root.geometry(f"{w}x{h}+{x}+{y}")
 
     def refresh_games(self):
         """Fills the game list: live game first, then saves/ newest first."""
@@ -361,10 +385,10 @@ class App:
             self.status.config(text=f"Ход {lt} · цивилизаций: {len(d.series)}")
 
         d = self.shown
-        for w in (self.table, self.tree_frame, self.advice, self.canvas.get_tk_widget()):
+        for w in (self.table, self.tree_frame, self.advice_frame, self.canvas.get_tk_widget()):
             w.pack_forget()
         if self.view.get() == "Советник":
-            self.advice.pack(side="left", fill="both", expand=self.compact.get())
+            self.advice_frame.pack(side="left", fill="both", expand=self.compact.get())
             if not self.compact.get():
                 self.canvas.get_tk_widget().pack(side="left", fill="both", expand=True)
             self.draw_advisor()
@@ -531,7 +555,8 @@ class App:
 
         # Right side: overall index for everyone + your era timeline with power spikes
         self.fig.clear()
-        ax = self.fig.add_subplot(2, 1, 1)
+        grid = self.fig.add_gridspec(2, 1, height_ratios=[4, 1])   # the graph matters most
+        ax = self.fig.add_subplot(grid[0])
         for pid in pids:
             turns = sorted(idx[pid])
             ax.plot(turns, [idx[pid][t].get("overall", 0) for t in turns], label=self.label(pid),
@@ -542,20 +567,32 @@ class App:
         if pids:
             ax.legend(fontsize=7, loc="upper left")
 
-        ax2 = self.fig.add_subplot(2, 1, 2)
+        # Era strip: one cell per era, era name and your unique units written inside
+        ax2 = self.fig.add_subplot(grid[1])
         civ = d.names.get(d.me, "")
         spikes = advisor.spike_eras(civ)
         cur = advisor.current_era(d.series[d.me][max(d.series[d.me])]) if d.me in d.series else -1
         eras = range(8)
-        ax2.bar(eras, [1] * 8, color=["#e57373" if e in spikes else "#cfd8dc" for e in eras],
+        ax2.bar(eras, [1] * 8, width=0.94, color=["#e57373" if e in spikes else "#cfd8dc" for e in eras],
                 edgecolor=["#000" if e == cur else "none" for e in eras], linewidth=2)
+        units = {}
         for u in advisor.uniques(civ):
             if u.get("era") is not None:
-                ax2.text(u["era"], 0.5, u["name"], rotation=90, ha="center", va="center", fontsize=8)
-        ax2.set_xticks(list(eras))
-        ax2.set_xticklabels([advisor.ERA_NAMES.get(e, e) for e in eras], rotation=20, fontsize=7)
+                units.setdefault(u["era"], []).append(u["name"])
+        for e in eras:
+            # one word per line; split very long words so they fit their cell
+            words = advisor.ERA_NAMES.get(e, str(e)).split()
+            name = "\n".join(w if len(w) <= 11 else w[:len(w) // 2] + "-\n" + w[len(w) // 2:]
+                             for w in words)
+            ax2.text(e, 0.72, name, ha="center", va="center", fontsize=6)
+            if e in units:
+                ax2.text(e, 0.25, "\n".join(units[e]), ha="center", va="center", fontsize=6,
+                         fontweight="bold")
+        ax2.set_xlim(-0.5, 7.5)
+        ax2.set_ylim(0, 1)
+        ax2.set_xticks([])
         ax2.set_yticks([])
-        ax2.set_title("Эпохи: красное — окна силы уникальных юнитов, рамка — вы сейчас", fontsize=10)
+        ax2.set_title("Эпохи: красное — окна силы ваших уникальных юнитов, рамка — вы сейчас", fontsize=9)
         self.fig.tight_layout()
         self.canvas.draw_idle()
 
@@ -589,9 +626,18 @@ def main():
     ap.add_argument("--node", help="metric-tree node to open (implies the tree view)")
     ap.add_argument("--no-archive", action="store_true",
                     help="don't archive games (the overlay already does it)")
+    ap.add_argument("--beside", help="left,top,right,bottom of the overlay: open next to it")
     args = ap.parse_args()
+    if sys.platform == "win32":
+        # Sharp text on scaled displays, and screen coordinates that match the overlay's
+        try:
+            import ctypes
+            ctypes.windll.shcore.SetProcessDpiAwareness(1)
+        except (AttributeError, OSError):
+            pass
+    beside = tuple(int(v) for v in args.beside.split(",")) if args.beside else None
     root = tk.Tk()
-    App(root, args.log, view=args.view, node=args.node, archive=not args.no_archive)
+    App(root, args.log, view=args.view, node=args.node, archive=not args.no_archive, beside=beside)
     root.mainloop()
 
 

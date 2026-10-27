@@ -41,6 +41,19 @@ def _hwnd():
     return ctypes.windll.user32.FindWindowW(None, TITLE)
 
 
+def window_rect():
+    """Overlay rectangle in screen pixels (left, top, right, bottom), or None."""
+    if not IS_WIN:
+        x, y = dpg.get_viewport_pos()
+        return (int(x), int(y), int(x + dpg.get_viewport_width()), int(y + dpg.get_viewport_height()))
+    import ctypes
+    from ctypes import wintypes
+    r = wintypes.RECT()
+    if not ctypes.windll.user32.GetWindowRect(_hwnd(), ctypes.byref(r)):
+        return None
+    return (r.left, r.top, r.right, r.bottom)
+
+
 def set_alpha(alpha):
     if not IS_WIN:
         return
@@ -257,6 +270,9 @@ class Overlay:
             exe = sys.executable
         args = [exe, os.path.join(here, "civstats.py"), "--no-archive"]
         args += ["--node", user_data] if user_data else ["--view", "Советник"]
+        rect = window_rect()
+        if rect:  # open the big window next to the overlay, not under it
+            args += ["--beside", ",".join(map(str, rect))]
         if self.data.path != LOG_PATH:
             args.append(self.data.path)
         subprocess.Popen(args)
