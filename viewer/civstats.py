@@ -12,6 +12,7 @@ from matplotlib.ticker import MaxNLocator
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 
 from metrics_tree import TREE, NODES, compute_indices
+import advisor
 
 def find_log_path():
     """Lua.log location: $CIVSTATS_LOG, else the first existing known place
@@ -211,8 +212,8 @@ class App:
         self.game_box.pack(side="left", padx=(6, 12))
         self.game_box.bind("<<ComboboxSelected>>", lambda e: self.open_game())
         ttk.Label(bar, text="Вид:").pack(side="left")
-        self.view = tk.StringVar(value="Дерево")
-        choices = ["Дерево", "Панель"] + [label for _, label in METRICS] + ["Таблица"]
+        self.view = tk.StringVar(value="Советник")
+        choices = ["Советник", "Дерево", "Панель"] + [label for _, label in METRICS] + ["Таблица"]
         cb = ttk.Combobox(bar, textvariable=self.view, values=choices, state="readonly", width=24)
         cb.pack(side="left", padx=6)
         cb.bind("<<ComboboxSelected>>", lambda e: self.redraw())
@@ -244,6 +245,11 @@ class App:
         self.canvas = FigureCanvasTkAgg(self.fig, master=self.body)
         self.table = ttk.Treeview(self.body, show="headings")
         self.build_tree()
+        self.advice = tk.Text(self.body, width=62, wrap="word", font=("Segoe UI", 10),
+                              relief="flat", padx=8, pady=6)
+        for tag, color in (("red", "#c62828"), ("yellow", "#b26a00"), ("green", "#2e7d32")):
+            self.advice.tag_configure(tag, foreground=color)
+        self.advice.tag_configure("h", font=("Segoe UI", 11, "bold"))
 
         self.live.poll()
         self.refresh_games()
@@ -311,8 +317,14 @@ class App:
         else:
             self.status.config(text=f"Ход {lt} · цивилизаций: {len(d.series)}")
 
-        for w in (self.table, self.tree_frame, self.canvas.get_tk_widget()):
+        for w in (self.table, self.tree_frame, self.advice, self.canvas.get_tk_widget()):
             w.pack_forget()
+        if self.view.get() == "Советник":
+            self.advice.pack(side="left", fill="both", expand=self.compact.get())
+            if not self.compact.get():
+                self.canvas.get_tk_widget().pack(side="left", fill="both", expand=True)
+            self.draw_advisor()
+            return
         if self.view.get() == "Таблица":
             self.table.pack(fill="both", expand=True)
             self.draw_table()
@@ -427,6 +439,57 @@ class App:
             ax2.set_ylim(-5, 105)
             self.style_axis(ax2)
             ax2.legend(fontsize=7, loc="upper left", ncol=2)
+        self.fig.tight_layout()
+        self.canvas.draw_idle()
+
+    def draw_advisor(self):
+        d = self.data
+        pids = d.visible(self.show_all.get())
+        idx = compute_indices(d.series, pids) if pids else {}
+        profile, warns = advisor.analyse(d, idx, pids)
+
+        txt = self.advice
+        txt.configure(state="normal")
+        txt.delete("1.0", "end")
+        txt.insert("end", "Что сейчас не так\n", "h")
+        icons = {"red": "●", "yellow": "●", "green": "●"}
+        for level, msg in warns:
+            txt.insert("end", icons[level] + " ", level)
+            txt.insert("end", msg + "\n")
+        if profile:
+            txt.insert("end", "\nВаша цивилизация\n", "h")
+            txt.insert("end", "\n".join(profile) + "\n")
+        txt.configure(state="disabled")
+        if self.compact.get():
+            return
+
+        # Right side: overall index for everyone + your era timeline with power spikes
+        self.fig.clear()
+        ax = self.fig.add_subplot(2, 1, 1)
+        for pid in pids:
+            turns = sorted(idx[pid])
+            ax.plot(turns, [idx[pid][t].get("overall", 0) for t in turns], label=self.label(pid),
+                    linewidth=3 if pid == d.me else 1.2)
+        ax.set_title("Общая сила — индекс 0…100", fontsize=10)
+        ax.set_ylim(-5, 105)
+        self.style_axis(ax)
+        if pids:
+            ax.legend(fontsize=7, loc="upper left")
+
+        ax2 = self.fig.add_subplot(2, 1, 2)
+        civ = d.names.get(d.me, "")
+        spikes = advisor.spike_eras(civ)
+        cur = advisor.current_era(d.series[d.me][max(d.series[d.me])]) if d.me in d.series else -1
+        eras = range(8)
+        ax2.bar(eras, [1] * 8, color=["#e57373" if e in spikes else "#cfd8dc" for e in eras],
+                edgecolor=["#000" if e == cur else "none" for e in eras], linewidth=2)
+        for u in advisor.uniques(civ):
+            if u.get("era") is not None:
+                ax2.text(u["era"], 0.5, u["name"], rotation=90, ha="center", va="center", fontsize=8)
+        ax2.set_xticks(list(eras))
+        ax2.set_xticklabels([advisor.ERA_NAMES.get(e, e) for e in eras], rotation=20, fontsize=7)
+        ax2.set_yticks([])
+        ax2.set_title("Эпохи: красное — окна силы уникальных юнитов, рамка — вы сейчас", fontsize=10)
         self.fig.tight_layout()
         self.canvas.draw_idle()
 

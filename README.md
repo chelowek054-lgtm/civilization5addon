@@ -17,6 +17,7 @@ and other players don't need to install it.
 
 ### Features
 
+- **Advisor** (default view) — red/yellow/green warnings while you play (too few cities, weak army vs. strongest neighbour, negative gold, unhappiness, falling behind in science, sharp drops in the metric tree), your civ's trait and unique units/buildings with the era and tech that unlock them, and its power-spike windows on an era timeline. Civ data is read from the game's own database: `python tools/extract_civ_data.py` (re-run after DLC or game updates).
 - **Metric tree** — all stats are normalized to a 0–100 index (0 = worst civ, 100 = best)
   and grouped: *Overall strength → 8 groups (scale, economy, science, culture,
   faith, stability, military, score) → subgroups → raw stats*. Select any node to
@@ -163,6 +164,7 @@ python viewer/civstats.py saves/<file>.log
 
 ### Возможности
 
+- **Советник** (вид по умолчанию) — красные, жёлтые и зелёные предупреждения во время игры (мало городов, армия слабее сильнейшего соседа, отрицательный доход, недовольство, отставание в науке, резкие падения в дереве показателей), особенность вашей цивилизации, уникальные юниты и здания с эпохой и технологией открытия и окна силы на шкале эпох. Данные о цивилизациях берутся из базы самой игры: `python tools/extract_civ_data.py` (перезапустите после обновлений игры или DLC).
 - **Дерево показателей** — все показатели приводятся к индексу 0–100
   (0 — худшая цивилизация, 100 — лучшая) и группируются: *Общая сила → 8 групп
   (масштаб, экономика, наука, культура, вера, стабильность, армия, счёт) →
