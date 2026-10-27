@@ -45,7 +45,10 @@ IS_WIN = sys.platform == "win32"
 
 def _hwnd():
     import ctypes
-    return ctypes.windll.user32.FindWindowW(None, TITLE)
+    from ctypes import wintypes
+    find = ctypes.windll.user32.FindWindowW
+    find.restype = wintypes.HWND   # pointer-sized, not a truncated 32-bit int
+    return find(None, TITLE)
 
 
 def window_rect():
@@ -92,10 +95,17 @@ def keep_on_top():
     if not IS_WIN:
         return
     import ctypes
+    from ctypes import wintypes
+    user32 = ctypes.windll.user32
+    # Without argtypes ctypes passes -1 as a 32-bit int and 64-bit Windows rejects
+    # it as an invalid window handle (error 1400): HWND_TOPMOST must be pointer-sized.
+    user32.SetWindowPos.argtypes = [wintypes.HWND, wintypes.HWND, ctypes.c_int, ctypes.c_int,
+                                    ctypes.c_int, ctypes.c_int, ctypes.c_uint]
+    user32.SetWindowPos.restype = wintypes.BOOL
     h = _hwnd()
-    if h and ctypes.windll.user32.IsWindowVisible(h):
+    if h and user32.IsWindowVisible(h):
         # HWND_TOPMOST, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE | SWP_NOOWNERZORDER
-        ctypes.windll.user32.SetWindowPos(h, -1, 0, 0, 0, 0, 0x0002 | 0x0001 | 0x0010 | 0x0200)
+        user32.SetWindowPos(h, wintypes.HWND(-1), 0, 0, 0, 0, 0x0002 | 0x0001 | 0x0010 | 0x0200)
 
 
 def window_visible():
