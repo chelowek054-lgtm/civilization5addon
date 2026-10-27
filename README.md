@@ -17,6 +17,8 @@ and other players don't need to install it.
 
 ### Features
 
+- **Compact overlay** (Dear PyGui, `run_viewer`) — a small always-on-top panel on the left edge under the science panel: one graph (overall strength of every civ, you in bold), the must-watch numbers with your rank (strength, science, gold, army vs. strongest rival, happiness, cities, era / power spike) and a one-line tip. Click any number or `+` to open the full analysis window on that branch; drag it by the title row; `o` cycles transparency.
+- **Full analysis window** (`run_analysis`) — everything below.
 - **Advisor** (default view) — red/yellow/green warnings while you play (too few cities, weak army vs. strongest neighbour, negative gold, unhappiness, falling behind in science, sharp drops in the metric tree), your civ's trait and unique units/buildings with the era and tech that unlock them, and its power-spike windows on an era timeline. Civ data is read from the game's own database: `python tools/extract_civ_data.py` (re-run after DLC or game updates).
 - **Metric tree** — all stats are normalized to a 0–100 index (0 = worst civ, 100 = best)
   and grouped: *Overall strength → 8 groups (scale, economy, science, culture,
@@ -39,7 +41,7 @@ and other players don't need to install it.
 1. Install Python dependencies:
 
    ```bash
-   pip install matplotlib
+   pip install matplotlib dearpygui
    ```
 
 2. Install the logger into the game and enable Lua logging:
@@ -67,7 +69,8 @@ usual Steam folders (including Flatpak Steam).
 1. Install Python dependencies:
 
    ```bash
-   sudo apt install python3-tk python3-matplotlib
+   sudo apt install python3-tk python3-matplotlib python3-pip
+   pip install --user dearpygui
    ```
 
    (Fedora: `sudo dnf install python3-tkinter python3-matplotlib`,
@@ -140,7 +143,9 @@ python viewer/civstats.py saves/<file>.log
 | `viewer/civstats.py` | Viewer window, log reader, game archive |
 | `viewer/metrics_tree.py` | Metric tree and index calculation |
 | `install.ps1`, `install.sh` | Installer / uninstaller (Windows / Linux) |
-| `run_viewer.bat`, `run_viewer.sh` | Viewer launchers (Windows / Linux) |
+| `run_viewer.bat`, `run_viewer.sh` | Overlay launchers (Windows / Linux) |
+| `run_analysis.bat`, `run_analysis.sh` | Full analysis window launchers |
+| `viewer/overlay.py` | Compact Dear PyGui overlay |
 
 ### Notes
 
@@ -164,6 +169,8 @@ python viewer/civstats.py saves/<file>.log
 
 ### Возможности
 
+- **Компактная панель** (Dear PyGui, `run_viewer`) — маленькое окно поверх игры у левого края под панелью науки: один график (общая сила всех цивилизаций, вы — толстой линией), обязательные показатели с вашим местом (сила, наука, золото, армия против сильнейшего, довольство, города, эпоха / пик) и совет в одну строку. Клик по показателю или `+` открывает подробное окно сразу на этой ветке; перетаскивается за заголовок; `o` меняет прозрачность.
+- **Подробное окно** (`run_analysis`) — всё, что ниже.
 - **Советник** (вид по умолчанию) — красные, жёлтые и зелёные предупреждения во время игры (мало городов, армия слабее сильнейшего соседа, отрицательный доход, недовольство, отставание в науке, резкие падения в дереве показателей), особенность вашей цивилизации, уникальные юниты и здания с эпохой и технологией открытия и окна силы на шкале эпох. Данные о цивилизациях берутся из базы самой игры: `python tools/extract_civ_data.py` (перезапустите после обновлений игры или DLC).
 - **Дерево показателей** — все показатели приводятся к индексу 0–100
   (0 — худшая цивилизация, 100 — лучшая) и группируются: *Общая сила → 8 групп
@@ -187,7 +194,7 @@ python viewer/civstats.py saves/<file>.log
 1. Установите зависимости Python:
 
    ```bash
-   pip install matplotlib
+   pip install matplotlib dearpygui
    ```
 
 2. Установите логгер в игру и включите Lua-логирование:
@@ -215,7 +222,8 @@ Steam (включая Steam из Flatpak).
 1. Установите зависимости Python:
 
    ```bash
-   sudo apt install python3-tk python3-matplotlib
+   sudo apt install python3-tk python3-matplotlib python3-pip
+   pip install --user dearpygui
    ```
 
    (Fedora: `sudo dnf install python3-tkinter python3-matplotlib`,
@@ -288,7 +296,9 @@ python viewer/civstats.py saves/<файл>.log
 | `viewer/civstats.py` | Окно программы, чтение лога, архив партий |
 | `viewer/metrics_tree.py` | Дерево показателей и расчёт индексов |
 | `install.ps1`, `install.sh` | Установка / удаление (Windows / Linux) |
-| `run_viewer.bat`, `run_viewer.sh` | Запуск программы (Windows / Linux) |
+| `run_viewer.bat`, `run_viewer.sh` | Запуск компактной панели (Windows / Linux) |
+| `run_analysis.bat`, `run_analysis.sh` | Запуск подробного окна |
+| `viewer/overlay.py` | Компактная панель на Dear PyGui |
 
 ### Примечания
 

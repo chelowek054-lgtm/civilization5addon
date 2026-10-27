@@ -11,7 +11,7 @@ from matplotlib.figure import Figure
 from matplotlib.ticker import MaxNLocator
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 
-from metrics_tree import TREE, NODES, compute_indices
+from metrics_tree import TREE, NODES, PARENT, compute_indices
 import advisor
 
 def find_log_path():
@@ -126,10 +126,11 @@ class Archive:
 
 
 class Data:
-    def __init__(self, path):
+    def __init__(self, path, archive=True):
         self.path = path
         self.pos = 0
-        self.archive = Archive(ARCHIVE_DIR) if os.path.normcase(path) == os.path.normcase(LOG_PATH) else None
+        is_live = os.path.normcase(path) == os.path.normcase(LOG_PATH)
+        self.archive = Archive(ARCHIVE_DIR) if archive and is_live else None
         self.reset()
 
     def reset(self):
@@ -194,11 +195,11 @@ class Data:
 
 
 class App:
-    def __init__(self, root, path):
+    def __init__(self, root, path, view=None, node=None, archive=True):
         self.root = root
         # The live log is always polled (so games keep being archived) even
         # while a saved game from history is on screen.
-        self.live = Data(LOG_PATH)
+        self.live = Data(LOG_PATH, archive=archive)
         self.data = self.live
         root.title("Civ 5 — статистика")
         root.geometry("1280x820")
@@ -257,6 +258,17 @@ class App:
             self.game.set(os.path.splitext(os.path.basename(path))[0])
             self.saved_paths[self.game.get()] = path
             self.open_game()
+        if node in NODES:
+            view = "Дерево"
+            self.selected = node
+            parent = PARENT.get(node)
+            while parent:  # unfold the branch down to the node
+                self.tree.item(parent, open=True)
+                parent = PARENT.get(parent)
+            self.tree.selection_set(node)
+            self.tree.see(node)
+        if view:
+            self.view.set(view)
         self.redraw()
         root.after(REFRESH_MS, self.tick)
 
@@ -516,9 +528,16 @@ class App:
 
 
 def main():
-    path = sys.argv[1] if len(sys.argv) > 1 else LOG_PATH
+    import argparse
+    ap = argparse.ArgumentParser(description="Civ 5 stats: full analysis window")
+    ap.add_argument("log", nargs="?", default=LOG_PATH, help="Lua.log or a saved game from saves/")
+    ap.add_argument("--view", help="start view, e.g. Советник, Дерево, Таблица")
+    ap.add_argument("--node", help="metric-tree node to open (implies the tree view)")
+    ap.add_argument("--no-archive", action="store_true",
+                    help="don't archive games (the overlay already does it)")
+    args = ap.parse_args()
     root = tk.Tk()
-    App(root, path)
+    App(root, args.log, view=args.view, node=args.node, archive=not args.no_archive)
     root.mainloop()
 
 
