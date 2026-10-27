@@ -4,6 +4,7 @@ always on top. The full analysis window (civstats.py) opens with the "+" button.
 
     python viewer/overlay.py [saved_game.log]
 """
+import json
 import os
 import subprocess
 import sys
@@ -17,9 +18,14 @@ from metrics_tree import compute_indices
 
 TITLE = "Civ5 Stats Overlay"
 WIDTH, HEIGHT = 340, 480
+LINE_HEIGHT = 104        # one-line mode: title, tip and next pick only
 POS = (6, 132)           # left edge, just under the science / tech panel at 1080p
 REFRESH_S = 2.0
 ALPHAS = (0.88, 0.7, 1.0)
+HOTKEY = "Ctrl+Shift+S"  # cycles: full panel → one line → hidden → full panel
+SETTINGS = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                        "overlay_settings.json")
+MODES = ("full", "line", "hidden")
 
 GOOD, BAD, WARN, DIM = (110, 210, 120), (240, 90, 80), (240, 190, 70), (170, 170, 170)
 PALETTE = [(31, 119, 180), (255, 127, 14), (44, 160, 44), (214, 39, 40), (148, 103, 189),
@@ -69,6 +75,47 @@ def start_native_drag():
     u = ctypes.windll.user32
     u.ReleaseCapture()
     u.SendMessageW(_hwnd(), 0xA1, 2, 0)   # WM_NCLBUTTONDOWN on HTCAPTION
+
+
+def show_window(visible):
+    if IS_WIN:
+        import ctypes
+        ctypes.windll.user32.ShowWindow(_hwnd(), 4 if visible else 0)   # SW_SHOWNOACTIVATE / SW_HIDE
+
+
+def window_visible():
+    if not IS_WIN:
+        return True
+    import ctypes
+    h = _hwnd()
+    return bool(h and ctypes.windll.user32.IsWindowVisible(h))
+
+
+def hotkey_down():
+    """Ctrl+Shift+S held right now, even while the game has focus (Windows).
+    Elsewhere only works while the overlay itself is focused."""
+    if IS_WIN:
+        import ctypes
+        key = ctypes.windll.user32.GetAsyncKeyState
+        return all(key(vk) & 0x8000 for vk in (0x11, 0x10, 0x53))   # Ctrl, Shift, S
+    return (dpg.is_key_down(dpg.mvKey_LControl) or dpg.is_key_down(dpg.mvKey_RControl)) and \
+        (dpg.is_key_down(dpg.mvKey_LShift) or dpg.is_key_down(dpg.mvKey_RShift)) and dpg.is_key_down(dpg.mvKey_S)
+
+
+def load_settings():
+    try:
+        with open(SETTINGS, encoding="utf-8") as f:
+            return json.load(f)
+    except (OSError, ValueError):
+        return {}
+
+
+def save_settings(settings):
+    try:
+        with open(SETTINGS, "w", encoding="utf-8") as f:
+            json.dump(settings, f)
+    except OSError:
+        pass
 
 
 # ---------- data -> what we show ----------
@@ -163,19 +210,31 @@ def summarize(data):
 class Overlay:
     def __init__(self, path):
         self.data = Data(path)
-        self.alpha_i = 0
+        self.settings = load_settings()
+        self.alpha_i = self.settings.get("alpha", 0) % len(ALPHAS)
+        self.mode = self.settings.get("mode", "full")
+        if self.mode not in MODES[:2]:
+            self.mode = "full"          # never start invisible
         self.themes = {}
         self.last_poll = 0.0
+        self.hotkey_was_down = False
 
         dpg.create_context()
         self.load_font()
         self.build()
-        dpg.create_viewport(title=TITLE, width=WIDTH, height=HEIGHT, x_pos=POS[0], y_pos=POS[1],
+        x, y = self.settings.get("pos", POS)
+        if IS_WIN:   # saved on a monitor that is gone now: back to the default place
+            import ctypes
+            m = ctypes.windll.user32.GetSystemMetrics
+            if not (m(76) - 50 <= x <= m(76) + m(78) - 50 and m(77) <= y <= m(77) + m(79) - 50):
+                x, y = POS
+        dpg.create_viewport(title=TITLE, width=WIDTH, height=HEIGHT, x_pos=int(x), y_pos=int(y),
                             always_on_top=True, decorated=not IS_WIN, resizable=False)
         dpg.setup_dearpygui()
         dpg.show_viewport()
         dpg.set_primary_window("main", True)
         set_alpha(ALPHAS[self.alpha_i])
+        self.apply_mode()
 
     def load_font(self):
         candidates = [r"C:\Windows\Fonts\segoeui.ttf",
@@ -229,6 +288,9 @@ class Overlay:
                 with dpg.table_row():
                     dpg.add_text("Civ 5 · статистика", tag="title", color=(220, 200, 140))
                     with dpg.group(horizontal=True):
+                        dpg.add_button(label="-", width=20, tag="btn_mode", callback=self.toggle_line)
+                        with dpg.tooltip(dpg.last_item()):
+                            dpg.add_text(f"Одна строка / вся панель. {HOTKEY}: панель → строка → скрыть")
                         dpg.add_button(label="o", width=20, tag="btn_alpha", callback=self.cycle_alpha)
                         with dpg.tooltip(dpg.last_item()):
                             dpg.add_text("Прозрачность")
@@ -238,6 +300,17 @@ class Overlay:
                         dpg.add_button(label="x", width=20, tag="btn_close",
                                        callback=lambda: dpg.stop_dearpygui())
 
+            with dpg.group(tag="details"):   # hidden in one-line mode
+                self.build_details()
+            dpg.add_text("", tag="tip", wrap=WIDTH - 20)
+            dpg.add_text("", tag="next", wrap=WIDTH - 20, color=(150, 190, 230))
+        dpg.bind_item_theme("main", main_theme)
+
+        if IS_WIN:
+            with dpg.handler_registry():
+                dpg.add_mouse_click_handler(button=dpg.mvMouseButton_Left, callback=self.maybe_drag)
+
+    def build_details(self):
             with dpg.plot(height=170, width=-1, no_menus=True, no_box_select=True, no_mouse_pos=True):
                 dpg.add_plot_axis(dpg.mvXAxis, tag="x", no_gridlines=True)
                 with dpg.plot_axis(dpg.mvYAxis, tag="y", no_gridlines=False):
@@ -259,23 +332,47 @@ class Overlay:
                         dpg.add_text("", tag=f"r_{key}")
 
             dpg.add_separator()
-            dpg.add_text("", tag="tip", wrap=WIDTH - 20)
-            dpg.add_text("", tag="next", wrap=WIDTH - 20, color=(150, 190, 230))
-        dpg.bind_item_theme("main", main_theme)
 
-        if IS_WIN:
-            with dpg.handler_registry():
-                dpg.add_mouse_click_handler(button=dpg.mvMouseButton_Left, callback=self.maybe_drag)
+    # ---------- modes, hotkey, position ----------
+
+    def apply_mode(self):
+        self.save()   # remember the position while the window is still visible
+        if self.mode != "hidden":
+            # resize first: resizing a hidden window would show it again
+            dpg.configure_item("details", show=self.mode == "full")
+            dpg.configure_item("btn_mode", label="-" if self.mode == "full" else "=")
+            dpg.set_viewport_height(HEIGHT if self.mode == "full" else LINE_HEIGHT)
+        show_window(self.mode != "hidden")
+
+    def toggle_line(self):
+        self.mode = "line" if self.mode == "full" else "full"
+        self.apply_mode()
+
+    def check_hotkey(self):
+        down = hotkey_down()
+        if down and not self.hotkey_was_down:
+            self.mode = MODES[(MODES.index(self.mode) + 1) % len(MODES)]
+            self.apply_mode()
+        self.hotkey_was_down = down
+
+    def save(self):
+        rect = window_rect() if window_visible() else None   # a hidden window has no useful position
+        if rect:
+            self.settings["pos"] = [rect[0], rect[1]]
+        self.settings.update(mode=self.mode, alpha=self.alpha_i)
+        save_settings(self.settings)
 
     def maybe_drag(self):
         x, y = dpg.get_mouse_pos(local=False)
-        on_button = any(dpg.is_item_hovered(b) for b in ("btn_alpha", "btn_full", "btn_close"))
+        on_button = any(dpg.is_item_hovered(b) for b in ("btn_mode", "btn_alpha", "btn_full", "btn_close"))
         if y < 26 and not on_button:   # title row, not on a button
-            start_native_drag()
+            start_native_drag()       # returns when the drag ends
+            self.save()               # remember where the panel was put
 
     def cycle_alpha(self):
         self.alpha_i = (self.alpha_i + 1) % len(ALPHAS)
         set_alpha(ALPHAS[self.alpha_i])
+        self.save()
 
     def open_full(self, sender=None, app_data=None, user_data=None):
         """Opens the full analysis window, on a metric-tree node if one is given.
@@ -316,8 +413,11 @@ class Overlay:
             dpg.set_value(f"r_{key}", rank)
             dpg.configure_item(f"v_{key}", color=color or (230, 230, 230))
             dpg.configure_item(f"r_{key}", color=color or DIM)
+        diag = self.data.diagnose()   # setup problems beat game advice
+        if diag:
+            tip, tip_color = diag[1], LEVEL_COLOR[diag[0]]
         dpg.set_value("tip", tip)
-        dpg.set_value("next", next_steps(self.data))
+        dpg.set_value("next", "" if diag and diag[0] == "red" else next_steps(self.data))
         dpg.configure_item("tip", color=tip_color)
 
     def run(self):
@@ -326,8 +426,10 @@ class Overlay:
             now = time.monotonic()
             if now - self.last_poll > REFRESH_S:
                 self.last_poll = now
-                self.refresh()
+                self.refresh(force=self.data.series == {})   # keep the setup status fresh
+            self.check_hotkey()
             dpg.render_dearpygui_frame()
+        self.save()
         dpg.destroy_context()
 
 

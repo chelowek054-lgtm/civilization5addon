@@ -2,6 +2,9 @@
 -- Only reads game state, so it never causes multiplayer desyncs.
 -- Line format: CIVSTATS|turn|playerId|isMe|met|civName|key=value;key=value;...
 
+-- Bump when the logged fields change; the viewer warns about older loggers.
+LOGGER_VERSION = 3
+
 local function safe(f, ...)
 	local ok, v = pcall(f, ...)
 	if ok and type(v) == "number" then return v end
@@ -136,13 +139,42 @@ local function progress(p, pTeam)
 	}
 end
 
+-- Game settings the viewer needs to scale its benchmarks, plus a game id that
+-- stays the same when the game is saved and loaded again (your civ, your
+-- starting tile and the map size), so one game across sessions is one record.
+local function gameInfo(p)
+	local info = { loggerVersion = LOGGER_VERSION }
+	local speed = GameInfo.GameSpeeds[Game.GetGameSpeedType()]
+	info.speed = speed and speed.Type or "?"
+	info.speedPercent = speed and speed.GrowthPercent or 100
+	local world = GameInfo.Worlds[Map.GetWorldSize()]
+	info.worldSize = world and world.Type or "?"
+	info.worldPlayers = world and world.DefaultPlayers or 8
+	local w, h = Map.GetGridSize()
+	info.mapW, info.mapH = w or 0, h or 0
+	local start = p:GetStartingPlot()
+	local civ = GameInfo.Civilizations[p:GetCivilizationType()]
+	info.gameId = string.format("%s-%d-%d-%dx%d", civ and civ.Type:gsub("CIVILIZATION_", "") or "X",
+		start and start:GetX() or -1, start and start:GetY() or -1, info.mapW, info.mapH)
+	return info
+end
+
 local function LogTurn()
 	local turn = Game.GetGameTurn()
 	local me = Game.GetActivePlayer()
 	local myTeam = Teams[Game.GetActiveTeam()]
-	print("CIVSTATS_TURN|" .. turn)
+	print("CIVSTATS_TURN|" .. turn .. "|v=" .. LOGGER_VERSION)
 	for i = 0, GameDefines.MAX_MAJOR_CIVS - 1 do
 		local p = Players[i]
+		-- one civ failing must not stop the others: report and go on
+		local ok, err = pcall(LogPlayer, turn, i, p, me, myTeam)
+		if not ok then
+			print("CIVSTATS_ERROR|" .. turn .. "|" .. i .. "|" .. tostring(err))
+		end
+	end
+end
+
+function LogPlayer(turn, i, p, me, myTeam)
 		if p and p:IsEverAlive() and p:IsAlive() then
 			local team = p:GetTeam()
 			local met = (i == me) or myTeam:IsHasMet(team)
@@ -153,6 +185,7 @@ local function LogTurn()
 				for k, v in pairs(relation(Players[me], myTeam, p, team)) do s[k] = v end
 			else
 				for k, v in pairs(progress(p, Teams[team])) do s[k] = v end
+				for k, v in pairs(gameInfo(p)) do s[k] = v end
 			end
 			for k, v in pairs(s) do
 				parts[#parts + 1] = k .. "=" .. tostring(v)
@@ -160,11 +193,10 @@ local function LogTurn()
 			print(string.format("CIVSTATS|%d|%d|%d|%d|%s|%s",
 				turn, i, (i == me) and 1 or 0, met and 1 or 0, name, table.concat(parts, ";")))
 		end
-	end
 end
 
 Events.ActivePlayerTurnStart.Add(LogTurn)
 Events.LoadScreenClose.Add(function()
-	print("CIVSTATS_START|" .. Game.GetGameTurn())
+	print("CIVSTATS_START|" .. Game.GetGameTurn() .. "|v=" .. LOGGER_VERSION)
 	LogTurn()
 end)

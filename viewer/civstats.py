@@ -79,17 +79,21 @@ def log_stamp(line):
 
 
 class Archive:
-    """Copies every game's stat lines into games/<date>_<civ>_<id>.log.
+    """Copies every game's stat lines into saves/<date>_<civ>_<game id>.log.
 
-    The file name depends only on log timestamps, so restarting the viewer
-    rewrites the same file instead of creating duplicates.
+    The logger writes a game id that survives save/load (civ, starting tile,
+    map size), so all sessions of one game land in one file. Lines are stored
+    without the log timestamp and each distinct line only once, so restarting
+    the viewer or reloading an older save never duplicates anything.
+    Logs from loggers before v3 have no game id and get one file per session.
     """
 
     def __init__(self, folder):
         self.folder = folder
         self.session = "0"
-        self.game = None
+        self.start = "0"
         self.f = None
+        self.seen = set()
         self.buffer = []
 
     def close(self):
@@ -100,29 +104,66 @@ class Archive:
     def new_session(self, line=""):
         self.close()
         self.session = log_stamp(line)
-        self.game = None
+        self.start = "0"
+        self.buffer = []
 
     def new_game(self, line):
         self.close()
-        self.game = f"{self.session}-{log_stamp(line)}"
-        self.buffer = [line]
+        self.start = log_stamp(line)
+        self.buffer = []
+
+    def _open(self, rec):
+        stats = rec[5]
+        gid = str(stats.get("gameId") or f"{self.session}-{self.start}")
+        gid = "".join(c for c in gid if c.isalnum() or c in "-_x")
+        os.makedirs(self.folder, exist_ok=True)
+        existing = [f for f in os.listdir(self.folder) if f.endswith(f"_{gid}.log")]
+        if existing:  # the same game played in an earlier session: continue its file
+            path = os.path.join(self.folder, existing[0])
+            with open(path, encoding="utf-8", errors="replace") as f:
+                self.seen = {normalize(l) for l in f.read().splitlines()}
+        else:
+            path = os.path.join(self.folder, f"{datetime.date.today():%Y-%m-%d}_{rec[4]}_{gid}.log")
+            self.seen = set()
+        self.f = open(path, "a", encoding="utf-8")
 
     def write(self, line, rec):
         if self.f is None:
-            if rec[2]:  # first line from the active player: now we know our civ
-                if self.game is None:
-                    self.game = f"{self.session}-0"
-                os.makedirs(self.folder, exist_ok=True)
-                name = f"{datetime.date.today():%Y-%m-%d}_{rec[4]}_{self.game}.log"
-                self.f = open(os.path.join(self.folder, name), "w", encoding="utf-8")
-                self.f.write("\n".join(self.buffer + [line]) + "\n")
-                self.f.flush()
-                self.buffer = []
-            else:
+            if not rec[2]:  # wait for the active player's line: it carries civ and game id
                 self.buffer.append(line)
-            return
-        self.f.write(line + "\n")
-        self.f.flush()
+                return
+            self._open(rec)
+            lines, self.buffer = self.buffer + [line], []
+        else:
+            lines = [line]
+        new = [n for n in (normalize(l) for l in lines) if n not in self.seen]
+        if new:
+            self.seen.update(new)
+            self.f.write("\n".join(new) + "\n")
+            self.f.flush()
+
+
+def normalize(line):
+    """Stat line without the '[1303.765] CivStatsLogger: ' prefix."""
+    i = line.find("CIVSTATS|")
+    return line[i:].rstrip("\r\n") if i >= 0 else line.rstrip("\r\n")
+
+
+LOGGER_VERSION = 3   # must match LOGGER_VERSION in CivStatsLogger.lua
+INGAME_MARKERS = ("TopPanel:", "NotificationPanel:", "GenericPopup:", "InGame:")
+
+
+def config_logging_enabled(log_path):
+    """True/False from config.ini next to the Logs folder, None if unknown."""
+    cfg = os.path.join(os.path.dirname(os.path.dirname(log_path)), "config.ini")
+    try:
+        with open(cfg, encoding="utf-8-sig", errors="replace") as f:
+            for line in f:
+                if line.strip().startswith("LoggingEnabled"):
+                    return line.split("=", 1)[1].strip() == "1"
+    except OSError:
+        pass
+    return None
 
 
 class Data:
@@ -138,6 +179,31 @@ class Data:
         self.names = {}
         self.met = set()
         self.me = None
+        # what the log told us about the logger itself (for diagnose())
+        self.version = None
+        self.errors = []
+        self.in_game = False
+
+    def diagnose(self):
+        """(level, text) when something is wrong with the logger setup, else None.
+        level: 'red' broken, 'yellow' works partly or waiting."""
+        if self.archive is None and os.path.normcase(self.path) != os.path.normcase(LOG_PATH):
+            return None  # a saved game: nothing to set up
+        if not os.path.exists(self.path):
+            if config_logging_enabled(self.path) is False:
+                return "red", "Логирование выключено (LoggingEnabled = 0). Запустите install и перезапустите игру."
+            return "yellow", "Lua.log не найден — запустите игру (или задайте CIVSTATS_LOG)."
+        if self.errors:
+            return "red", "Ошибка логгера: " + self.errors[-1][:150]
+        if not self.series:
+            if self.in_game:
+                return "red", ("Партия идёт, но логгер молчит: запустите install и полностью "
+                               "перезапустите игру (Steam мог восстановить файлы).")
+            return "yellow", "Ждём загрузки партии…"
+        if (self.version or 0) < LOGGER_VERSION:
+            return "yellow", (f"Устаревший логгер (v{self.version or 1}, нужен v{LOGGER_VERSION}): "
+                              "запустите install и перезапустите игру — часть советов недоступна.")
+        return None
 
     def poll(self):
         """Read new log lines. Returns True if anything changed."""
@@ -158,11 +224,27 @@ class Data:
             self.pos = f.tell()
         changed = False
         for line in chunk.splitlines():
-            if self.archive and self.is_session_start(line):
-                self.archive.new_session(line)
+            if self.is_session_start(line):
+                self.in_game, self.errors = False, []
+                if self.archive:
+                    self.archive.new_session(line)
+            if not self.in_game and any(m in line for m in INGAME_MARKERS):
+                self.in_game = True
+            if "CIVSTATS_ERROR|" in line or ("CivStatsLogger" in line and
+                                             ("Runtime Error" in line or "Syntax Error" in line)):
+                self.errors.append(line[line.find("CIVSTATS_ERROR|") + 15:] if "CIVSTATS_ERROR|" in line else line)
+                changed = True
+                continue
+            if "CIVSTATS_TURN|" in line and "|v=" in line:
+                try:
+                    self.version = int(line.rsplit("|v=", 1)[1].strip())
+                except ValueError:
+                    pass
             if "CIVSTATS_START|" in line:
-                # a different game was loaded: start fresh
+                # a different game was loaded: start fresh (keep what we know about the logger)
+                version, errors = self.version, self.errors
                 self.reset()
+                self.version, self.errors, self.in_game = version, errors, True
                 if self.archive:
                     self.archive.new_game(line)
                 changed = True
@@ -377,12 +459,12 @@ class App:
             self.status.config(text=f"Просмотр хода {self.turn} из {lt} · «Последний» — вернуться")
         elif d is not self.live:
             self.status.config(text=f"Запись игры · до хода {lt if lt is not None else 0} · цивилизаций: {len(d.series)}")
-        elif not os.path.exists(d.path):
-            self.status.config(text="Lua.log не найден — запустите игру с LoggingEnabled = 1")
-        elif lt is None:
-            self.status.config(text="Ждём данных из игры…")
+        elif d.diagnose():
+            self.status.config(text=d.diagnose()[1])
         else:
-            self.status.config(text=f"Ход {lt} · цивилизаций: {len(d.series)}")
+            sc = advisor.game_scale(d)
+            game = f" · {sc['label']}, {sc['size']}" if sc["label"] else ""
+            self.status.config(text=f"Ход {lt} · цивилизаций: {len(d.series)}{game}")
 
         d = self.shown
         for w in (self.table, self.tree_frame, self.advice_frame, self.canvas.get_tk_widget()):
@@ -556,7 +638,7 @@ class App:
             for r in rv:
                 level, role = advisor.rival_role(r)
                 dist = "?" if r["dist"] is None else f"{r['dist']} кл."
-                growth = "" if r["mil_growth"] is None else f", армия {r['mil_growth']:+.0%} за 10 ходов"
+                growth = "" if r["mil_growth"] is None else f", армия {r['mil_growth']:+.0%} за {r['window']} ходов"
                 best = advisor.GROUP_LABELS.get(r["best"], "—")
                 txt.insert("end", "● ", level)
                 txt.insert("end", f"{r['name']} — {dist}, {role}. Сила {r['overall']:.0f}, "

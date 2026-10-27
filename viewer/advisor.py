@@ -99,8 +99,38 @@ def spike_eras(civ):
     return eras
 
 
-NEAR = 10          # tiles between nearest cities: closer than this is a neighbour
-FAR = 20
+NEAR = 10          # tiles between nearest cities: closer than this is a neighbour (standard map)
+STD_MAP = (80, 52, 8)   # standard map: width, height, players
+
+
+def game_scale(data):
+    """How this game differs from standard speed / standard map.
+
+    speed  — turn multiplier (quick 0.67, epic 1.5, marathon 3): benchmarks like
+             "3 cities by turn 40" and "over 10 turns" are stretched by it.
+    dist   — map-size multiplier for neighbour distances.
+    land   — land per player relative to standard, softens city-count targets.
+    Old logs without these fields behave as standard.
+    """
+    me = data.me
+    s = data.series[me][max(data.series[me])] if me in data.series and data.series[me] else {}
+    speed = (s.get("speedPercent") or 100) / 100
+    w, h = s.get("mapW") or STD_MAP[0], s.get("mapH") or STD_MAP[1]
+    players = s.get("worldPlayers") or STD_MAP[2]
+    dist = ((w * h) / (STD_MAP[0] * STD_MAP[1])) ** 0.5
+    land = ((w * h / players) / (STD_MAP[0] * STD_MAP[1] / STD_MAP[2])) ** 0.5
+    names = {"QUICK": "быстрая", "STANDARD": "обычная", "EPIC": "эпическая", "MARATHON": "марафон",
+             "DUEL": "дуэль", "TINY": "крошечная", "SMALL": "маленькая", "LARGE": "большая", "HUGE": "огромная"}
+    speed_name = s.get("speed")
+    size_name = s.get("worldSize")
+    return {"speed": speed, "dist": dist, "land": min(1.4, max(0.75, land)),
+            "label": speed_name and f"скорость {names.get(str(speed_name).split('_')[-1], speed_name)}",
+            "size": size_name and f"карта {names.get(str(size_name).split('_')[-1], size_name)}"}
+
+
+def turns(n, scale):
+    """n standard-speed turns at this game's speed."""
+    return max(1, round(n * scale["speed"]))
 
 # How each civ focus maps onto a metric-tree group
 FOCUS_GROUP = [("Завоевание", "g_military"), ("Наука", "g_science"), ("Культура", "g_culture"),
@@ -128,12 +158,14 @@ def rivals(data, idx, pids):
     t = max(data.series[me])
     s = data.series[me][t]
     my_mil = s.get("military", 0) or 1
+    sc = game_scale(data)
+    window, near_tiles = turns(10, sc), round(NEAR * sc["dist"])
     out = []
     for p in pids:
         if p == me or t not in data.series[p]:
             continue
         r = data.series[p][t]
-        past = [x for x in data.series[p] if x <= t - 10]
+        past = [x for x in data.series[p] if x <= t - window]
         mil_then = data.series[p][past[-1]].get("military", 0) if past else None
         groups = {g: idx[p][t].get(g) for g in GROUP_LABELS if g != "g_score" and t in idx.get(p, {})}
         groups = {g: v for g, v in groups.items() if v is not None}
@@ -141,6 +173,8 @@ def rivals(data, idx, pids):
         out.append({
             "pid": p, "name": data.names.get(p, str(p)),
             "dist": None if dist is None or dist < 0 else int(dist),
+            "near": dist is not None and 0 <= dist <= near_tiles,
+            "window": window,
             "war": r.get("war", 0) >= 1,
             "mil_ratio": r.get("military", 0) / my_mil,
             "mil_growth": (r.get("military", 0) / mil_then - 1) if mil_then else None,
@@ -154,7 +188,7 @@ def rivals(data, idx, pids):
 
 def rival_role(rv):
     """(level, short role) for one rival relative to you."""
-    near = rv["dist"] is not None and rv["dist"] <= NEAR
+    near = rv["near"]
     rising = (rv["mil_growth"] or 0) > 0.3
     if rv["war"] and rv["mil_ratio"] > 1:
         return "red", "война, он сильнее"
@@ -383,7 +417,7 @@ def policy_plan(data):
     # tall vs wide opener depends on how many cities you actually have
     if order[0] == "TRADITION" and s.get("cities", 0) >= 5:
         order[0] = "LIBERTY"
-    elif order[0] == "LIBERTY" and s.get("cities", 0) <= 2 and max(data.series[me]) > 40:
+    elif order[0] == "LIBERTY" and s.get("cities", 0) <= 2 and max(data.series[me]) > turns(40, game_scale(data)):
         order[0] = "TRADITION"
     era = current_era(s)
     lines = []
@@ -486,9 +520,12 @@ def analyse(data, idx, pids):
             warns.append(("yellow", "Окна уникальных юнитов позади — выигрывайте за счёт экономики и фокуса цивилизации."))
 
     # --- scale ---
+    sc = game_scale(data)
     cities = s.get("cities", 0)
-    expect = 2 if t < 40 else 3 if t < 80 else 4
-    if t >= 30 and cities < expect:
+    std_t = t / sc["speed"]                     # this turn expressed at standard speed
+    base = 2 if std_t < 40 else 3 if std_t < 80 else 4
+    expect = max(1, round(base * sc["land"]))   # more land per player — more cities expected
+    if std_t >= 30 and cities < expect:
         avg = sum(r.get("cities", 0) for r in rs) / len(rs) if rs else 0
         warns.append(("red" if cities < expect - 1 else "yellow",
                       f"Мало городов: {cities:g} на ходу {t} (ориентир ≥{expect}, у соперников в среднем {avg:.1f}). Нужны поселенцы."))
@@ -524,17 +561,18 @@ def analyse(data, idx, pids):
 
     # --- trends and weak spots from the metric tree ---
     if me in idx and idx[me]:
-        turns = sorted(idx[me])
-        now = idx[me][turns[-1]]
-        past_t = [x for x in turns if x <= turns[-1] - 10]
+        tlist = sorted(idx[me])
+        now = idx[me][tlist[-1]]
+        window = turns(10, sc)
+        past_t = [x for x in tlist if x <= tlist[-1] - window]
         if past_t:
             past = idx[me][past_t[-1]]
             drop = past.get("overall", 0) - now.get("overall", 0)
             if drop > 12:
-                warns.append(("red", f"Общий индекс упал на {drop:.0f} за 10 ходов — вы быстро отстаёте."))
+                warns.append(("red", f"Общий индекс упал на {drop:.0f} за {window} ходов — вы быстро отстаёте."))
             losers = sorted(((past.get(g.key, 0) - now.get(g.key, 0), g.label) for g in TREE.children), reverse=True)
             if losers and losers[0][0] > 15:
-                warns.append(("yellow", f"Сильнее всего просела группа «{losers[0][1]}» (−{losers[0][0]:.0f} за 10 ходов)."))
+                warns.append(("yellow", f"Сильнее всего просела группа «{losers[0][1]}» (−{losers[0][0]:.0f} за {window} ходов)."))
         groups = [(now.get(g.key), g.label) for g in TREE.children if g.key in now]
         if groups:
             weak = min(groups)

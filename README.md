@@ -17,7 +17,7 @@ and other players don't need to install it.
 
 ### Features
 
-- **Compact overlay** (Dear PyGui, `run_viewer`) — a small always-on-top panel on the left edge under the science panel: one graph (overall strength of every civ, you in bold), the must-watch numbers with your rank (strength, science, gold, army vs. strongest rival, happiness, cities, era / power spike) and a one-line tip. Click any number or `+` to open the full analysis window on that branch; drag it by the title row; `o` cycles transparency.
+- **Compact overlay** (Dear PyGui, `start`) — a small always-on-top panel on the left edge under the science panel: one graph (overall strength of every civ, you in bold), the must-watch numbers with your rank (strength, science, gold, army vs. strongest rival, happiness, cities, era / power spike) and a one-line tip. Click any number or `+` to open the full analysis window on that branch; drag it by the title row; `o` cycles transparency.
 - **Full analysis window** (`run_analysis`) — everything below.
 - **Advisor** (default view) — red/yellow/green warnings while you play (too few cities, weak army vs. strongest neighbour, negative gold, unhappiness, falling behind in science, sharp drops in the metric tree), your civ's trait and unique units/buildings with the era and tech that unlock them, and its power-spike windows on an era timeline. It also gives a short **development plan** (defence first if a strong neighbour is close, expansion, your civ's focus vs. whoever leads it, weak neighbours as targets, runaway leaders) and a **neighbours list**: distance in tiles to each rival's nearest city you have revealed, war status, army ratio and its 10-turn trend, and their strongest side. Distances only use cities you have actually seen, so nothing hidden leaks. Finally, **what to research** (up to three goals: fixes for current problems, your next unique unit, your civ's focus — with the techs you can start right now) and **which social policies to take** (next policy in your open branch, branch order for your civ and city count, future ideology, turns until the next policy). The overlay shows the immediate pick in one line: *Изучать: … · Культура: …*. Civ data is read from the game's own database: `python tools/extract_civ_data.py` (re-run after DLC or game updates).
 - **Metric tree** — all stats are normalized to a 0–100 index (0 = worst civ, 100 = best)
@@ -36,7 +36,8 @@ and other players don't need to install it.
 | Element | Meaning |
 |---|---|
 | **Title** `Civ 5 · ход N` | Current turn. Drag the window by this row. |
-| `o` · `+` · `x` | Transparency (88% → 70% → opaque) · open the full analysis window · close. |
+| `-` · `o` · `+` · `x` | One-line mode (only the tip) / full panel · transparency (88% → 70% → opaque) · open the full analysis window · close. |
+| **Ctrl+Shift+S** | Works while you play (Windows): full panel → one line → hidden → full panel. Position, mode and transparency are remembered. |
 | **Graph** | Overall strength of every civ you have met, turn by turn. The index is 0–100: 100 = best of the visible civs, 0 = worst. Your line is the thick one; the line under the graph names the current leader in its colour. A falling line means you are falling behind even if your own numbers grow. |
 | **Общая сила** (Strength) | Your overall index now and your place (`6/6` = last of six). |
 | **Наука/ход** (Science) | Science per turn and your place. |
@@ -75,7 +76,7 @@ Click any row label to open the full window on that branch of the metric tree (E
    ```
 
 3. **Fully restart** Civilization V and start or load a game.
-4. Run the viewer: double-click `run_viewer.bat`.
+4. Run the viewer: double-click `start.bat`.
 
 Uninstall: `powershell -ExecutionPolicy Bypass -File install.ps1 -Uninstall`
 
@@ -88,7 +89,7 @@ usual Steam folders (including Flatpak Steam).
 
    ```bash
    sudo apt install python3-tk python3-venv
-   chmod +x setup.sh install.sh run_viewer.sh run_analysis.sh
+   chmod +x setup.sh install.sh start.sh run_analysis.sh
    ./setup.sh
    ```
 
@@ -108,13 +109,13 @@ usual Steam folders (including Flatpak Steam).
 4. Run the viewer:
 
    ```bash
-   ./run_viewer.sh
+   ./start.sh
    ```
 
    If it says `Lua.log` is not found, point it to the log:
 
    ```bash
-   CIVSTATS_LOG="/path/to/Logs/Lua.log" ./run_viewer.sh
+   CIVSTATS_LOG="/path/to/Logs/Lua.log" ./start.sh
    ```
 
 Uninstall: `./install.sh --uninstall`
@@ -135,6 +136,27 @@ Where things live on Linux:
 Steam updates or "Verify integrity of game files" restore the original `InGame.xml` —
 run the installer again.
 
+### Checking that the logger works
+
+The panel tells you when something is wrong instead of the tip: logging disabled,
+the game is running but the logger is silent (re-run the installer — a Steam
+update or file check restores the original files), an old logger version, or a
+Lua error. After a few turns of a new game you can also run:
+
+```bash
+.venv\Scripts\python tools/check_log.py
+```
+
+It prints the logger version, game speed and map size, errors, and every expected
+field that is missing or always zero.
+
+### Game speed, map size and saved games
+
+Benchmarks scale with the game: on Epic every "by turn N" and "over 10 turns" is
+stretched ×1.5 (Marathon ×3, Quick ×0.67); neighbour distance scales with the map,
+and the city-count target with land per player. A game keeps one file in `saves/`
+across sessions: the logger writes a game id (your civ, starting tile, map size),
+and each turn is stored once even if you reload an older save.
 ### Overlay
 
 To see the game behind the viewer, run Civ 5 in **windowed / borderless** mode;
@@ -159,7 +181,8 @@ run_analysis.bat saves/<file>.log
 | `viewer/metrics_tree.py` | Metric tree and index calculation |
 | `requirements.txt`, `setup.bat`, `setup.sh` | Python dependencies and `.venv` setup |
 | `install.ps1`, `install.sh` | Installer / uninstaller (Windows / Linux) |
-| `run_viewer.bat`, `run_viewer.sh` | Overlay launchers (Windows / Linux) |
+| `tools/check_log.py` | Checks a log: logger version, errors, missing fields |
+| `start.bat`, `start.sh` | Overlay launchers (Windows / Linux) |
 | `run_analysis.bat`, `run_analysis.sh` | Full analysis window launchers |
 | `viewer/overlay.py` | Compact Dear PyGui overlay |
 
@@ -185,7 +208,7 @@ run_analysis.bat saves/<file>.log
 
 ### Возможности
 
-- **Компактная панель** (Dear PyGui, `run_viewer`) — маленькое окно поверх игры у левого края под панелью науки: один график (общая сила всех цивилизаций, вы — толстой линией), обязательные показатели с вашим местом (сила, наука, золото, армия против сильнейшего, довольство, города, эпоха / пик) и совет в одну строку. Клик по показателю или `+` открывает подробное окно сразу на этой ветке; перетаскивается за заголовок; `o` меняет прозрачность.
+- **Компактная панель** (Dear PyGui, `start`) — маленькое окно поверх игры у левого края под панелью науки: один график (общая сила всех цивилизаций, вы — толстой линией), обязательные показатели с вашим местом (сила, наука, золото, армия против сильнейшего, довольство, города, эпоха / пик) и совет в одну строку. Клик по показателю или `+` открывает подробное окно сразу на этой ветке; перетаскивается за заголовок; `o` меняет прозрачность.
 - **Подробное окно** (`run_analysis`) — всё, что ниже.
 - **Советник** (вид по умолчанию) — красные, жёлтые и зелёные предупреждения во время игры (мало городов, армия слабее сильнейшего соседа, отрицательный доход, недовольство, отставание в науке, резкие падения в дереве показателей), особенность вашей цивилизации, уникальные юниты и здания с эпохой и технологией открытия и окна силы на шкале эпох. Ещё он даёт короткий **план развития** (сначала оборона, если рядом сильный сосед; расширение; фокус вашей цивилизации против лидера в нём; слабые соседи как цели; лидер, уходящий в отрыв) и **список соседей**: расстояние в клетках до ближайшего видимого вам города каждого соперника, война, соотношение армий и его динамика за 10 ходов, сильнейшая сторона соперника. Расстояние считается только по городам, которые вы уже видели, поэтому скрытые данные не раскрываются. И наконец, **что изучать** (до трёх целей: решение текущих проблем, следующий уникальный юнит, фокус цивилизации — с технологиями, которые можно начать прямо сейчас) и **что выбирать в культуре** (следующая политика в открытой ветке, порядок веток под вашу цивилизацию и число городов, будущая идеология, через сколько ходов следующая политика). Компактная панель показывает ближайший выбор одной строкой: *Изучать: … · Культура: …*. Данные о цивилизациях берутся из базы самой игры: `python tools/extract_civ_data.py` (перезапустите после обновлений игры или DLC).
 - **Дерево показателей** — все показатели приводятся к индексу 0–100
@@ -205,7 +228,8 @@ run_analysis.bat saves/<file>.log
 | Элемент | Что значит |
 |---|---|
 | **Заголовок** `Civ 5 · ход N` | Текущий ход. За эту строку окно перетаскивается. |
-| `o` · `+` · `x` | Прозрачность (88% → 70% → без прозрачности) · открыть подробное окно · закрыть. |
+| `-` · `o` · `+` · `x` | Одна строка (только совет) / вся панель · прозрачность (88% → 70% → без прозрачности) · открыть подробное окно · закрыть. |
+| **Ctrl+Shift+S** | Работает прямо во время игры (Windows): вся панель → одна строка → скрыть → вся панель. Позиция, режим и прозрачность запоминаются. |
 | **График** | Общая сила всех встреченных цивилизаций по ходам. Индекс 0–100: 100 — лучший среди видимых, 0 — худший. Ваша линия — толстая; строка под графиком называет текущего лидера его цветом. Падающая линия значит, что вы отстаёте, даже если ваши цифры растут. |
 | **Общая сила** | Ваш общий индекс сейчас и место (`6/6` — последний из шести). |
 | **Наука/ход** | Наука за ход и ваше место. |
@@ -244,7 +268,7 @@ run_analysis.bat saves/<file>.log
    ```
 
 3. **Полностью перезапустите** Civilization V и начните или загрузите партию.
-4. Запустите программу: двойной клик по `run_viewer.bat`.
+4. Запустите программу: двойной клик по `start.bat`.
 
 Удаление: `powershell -ExecutionPolicy Bypass -File install.ps1 -Uninstall`
 
@@ -257,7 +281,7 @@ Steam (включая Steam из Flatpak).
 
    ```bash
    sudo apt install python3-tk python3-venv
-   chmod +x setup.sh install.sh run_viewer.sh run_analysis.sh
+   chmod +x setup.sh install.sh start.sh run_analysis.sh
    ./setup.sh
    ```
 
@@ -277,13 +301,13 @@ Steam (включая Steam из Flatpak).
 4. Запустите программу:
 
    ```bash
-   ./run_viewer.sh
+   ./start.sh
    ```
 
    Если программа пишет, что `Lua.log` не найден, укажите путь к нему:
 
    ```bash
-   CIVSTATS_LOG="/путь/к/Logs/Lua.log" ./run_viewer.sh
+   CIVSTATS_LOG="/путь/к/Logs/Lua.log" ./start.sh
    ```
 
 Удаление: `./install.sh --uninstall`
@@ -304,6 +328,28 @@ Steam (включая Steam из Flatpak).
 Обновление игры в Steam или «Проверка целостности файлов» возвращают оригинальный
 `InGame.xml` — запустите установщик ещё раз.
 
+### Проверка, что логгер работает
+
+Если что-то не так, панель пишет это вместо совета: логирование выключено, партия
+идёт, но логгер молчит (запустите установщик ещё раз — обновление Steam или проверка
+файлов возвращает оригинальные файлы), устаревшая версия логгера или ошибка Lua.
+Через несколько ходов новой партии можно также запустить:
+
+```bash
+.venv\Scripts\python tools/check_log.py
+```
+
+Скрипт покажет версию логгера, скорость и размер карты, ошибки и все ожидаемые поля,
+которых нет или которые всегда равны нулю.
+
+### Скорость игры, размер карты и сохранённые партии
+
+Ориентиры подстраиваются под партию: на эпической скорости все «к ходу N» и «за 10
+ходов» растягиваются в 1,5 раза (марафон — в 3, быстрая — 0,67); расстояние «соседа»
+зависит от размера карты, а ориентир по числу городов — от земли на игрока. Одна
+партия хранится в `saves/` одним файлом во всех сеансах: логгер пишет идентификатор
+партии (ваша цивилизация, стартовая клетка, размер карты), и каждый ход сохраняется
+один раз, даже если вы загрузили более раннее сохранение.
 ### Окно поверх игры
 
 Чтобы окно было видно поверх игры, запускайте Civ 5 в **оконном / безрамочном** режиме:
@@ -328,7 +374,8 @@ run_analysis.bat saves/<файл>.log
 | `viewer/metrics_tree.py` | Дерево показателей и расчёт индексов |
 | `requirements.txt`, `setup.bat`, `setup.sh` | Зависимости Python и создание `.venv` |
 | `install.ps1`, `install.sh` | Установка / удаление (Windows / Linux) |
-| `run_viewer.bat`, `run_viewer.sh` | Запуск компактной панели (Windows / Linux) |
+| `tools/check_log.py` | Проверка лога: версия логгера, ошибки, отсутствующие поля |
+| `start.bat`, `start.sh` | Запуск компактной панели (Windows / Linux) |
 | `run_analysis.bat`, `run_analysis.sh` | Запуск подробного окна |
 | `viewer/overlay.py` | Компактная панель на Dear PyGui |
 
