@@ -16,7 +16,7 @@ from civstats import LOG_PATH, Data
 from metrics_tree import compute_indices
 
 TITLE = "Civ5 Stats Overlay"
-WIDTH, HEIGHT = 340, 450
+WIDTH, HEIGHT = 340, 480
 POS = (6, 132)           # left edge, just under the science / tech panel at 1080p
 REFRESH_S = 2.0
 ALPHAS = (0.88, 0.7, 1.0)
@@ -85,6 +85,21 @@ def rank_color(rank, total):
     if rank == total:
         return BAD
     return None
+
+
+def next_steps(data):
+    """'Изучать: X · Культура: Y' — the immediate research and policy pick."""
+    parts = []
+    research = advisor.research_plan(data)
+    if research:
+        goal, _, now, _ = research[0]
+        parts.append(f"Изучать: {now[0] if now else goal}" + (f" (→ {goal})" if now and now[0] != goal else ""))
+    policies = advisor.policy_plan(data) or []
+    pick = next((l for l in policies if l.startswith(("Берите", "Откройте"))), None)
+    if pick:
+        name = pick.split("«")[1].split("»")[0] if "«" in pick else pick
+        parts.append(f"Культура: {name}")
+    return " · ".join(parts)
 
 
 def summarize(data):
@@ -245,6 +260,7 @@ class Overlay:
 
             dpg.add_separator()
             dpg.add_text("", tag="tip", wrap=WIDTH - 20)
+            dpg.add_text("", tag="next", wrap=WIDTH - 20, color=(150, 190, 230))
         dpg.bind_item_theme("main", main_theme)
 
         if IS_WIN:
@@ -301,6 +317,7 @@ class Overlay:
             dpg.configure_item(f"v_{key}", color=color or (230, 230, 230))
             dpg.configure_item(f"r_{key}", color=color or DIM)
         dpg.set_value("tip", tip)
+        dpg.set_value("next", next_steps(self.data))
         dpg.configure_item("tip", color=tip_color)
 
     def run(self):

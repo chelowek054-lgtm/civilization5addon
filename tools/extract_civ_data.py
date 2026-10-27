@@ -106,7 +106,28 @@ def main():
             "units": units, "buildings": buildings, "improvements": improvements,
         }
 
-    out = {"eras": sorted((e["id"], e["name"]) for e in eras.values()), "civs": civs}
+    # Tech tree and social policies, keyed by database ID (what the logger writes)
+    tech_tree = {}
+    for r in q("select * from Technologies"):
+        pre = [x[0] for x in q("select t.ID from Technology_PrereqTechs p join Technologies t "
+                                "on t.Type = p.PrereqTech where p.TechType = ?", r["Type"])]
+        tech_tree[r["ID"]] = {"type": r["Type"], "name": t(r["Description"]), "era": eras[r["Era"]]["id"],
+                              "cost": r["Cost"], "prereqs": pre}
+    branches = {}
+    for r in q("select * from PolicyBranchTypes"):
+        branches[r["ID"]] = {"type": r["Type"], "name": t(r["Description"]),
+                             "era": eras[r["EraPrereq"]]["id"] if r["EraPrereq"] in eras else 0}
+    branch_id = {b["type"]: i for i, b in branches.items()}
+    policies = {}
+    for r in q("select * from Policies"):
+        pre = [x[0] for x in q("select p2.ID from Policy_PrereqPolicies pp join Policies p2 "
+                                "on p2.Type = pp.PrereqPolicy where pp.PolicyType = ?", r["Type"])]
+        policies[r["ID"]] = {"type": r["Type"], "name": t(r["Description"]), "help": t(r["Help"]),
+                             "branch": branch_id.get(r["PolicyBranchType"]), "level": r["Level"],
+                             "prereqs": pre}
+
+    out = {"eras": sorted((e["id"], e["name"]) for e in eras.values()), "civs": civs,
+           "techs": tech_tree, "branches": branches, "policies": policies}
     with open(OUT, "w", encoding="utf-8") as f:
         json.dump(out, f, ensure_ascii=False, indent=1)
     print(f"{len(civs)} civilizations -> {os.path.normpath(OUT)}")

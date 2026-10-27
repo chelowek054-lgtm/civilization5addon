@@ -67,7 +67,7 @@ def parse_line(line):
             try:
                 stats[k] = float(v)
             except ValueError:
-                pass
+                stats[k] = v   # id lists like techIds=0,1,5 stay text
     return int(turn), int(pid), me == "1", met == "1", name, stats
 
 
@@ -530,6 +530,22 @@ class App:
             txt.insert("end", "\nКак развиваться\n", "h")
             for n, line in enumerate(plan, 1):
                 txt.insert("end", f"{n}. {line}\n")
+
+        txt.insert("end", "\nЧто изучать\n", "h")
+        research = advisor.research_plan(d)
+        if research is None:
+            txt.insert("end", "Появится в новой партии: логгер теперь пишет изученные технологии.\n")
+        for goal, reason, now, steps in research or []:
+            txt.insert("end", "● ", "green")
+            txt.insert("end", f"{goal} — {reason}, ещё {steps} техн. Сейчас: {', '.join(now) or '—'}.\n")
+
+        txt.insert("end", "\nЧто выбирать в культуре\n", "h")
+        policies = advisor.policy_plan(d)
+        if policies is None:
+            txt.insert("end", "Появится в новой партии: логгер теперь пишет принятые политики.\n")
+        for line in policies or []:
+            txt.insert("end", "● ", "green")
+            txt.insert("end", line + "\n")
 
         rv = advisor.rivals(d, idx, pids)
         if rv:

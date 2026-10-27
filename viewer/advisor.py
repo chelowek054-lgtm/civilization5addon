@@ -236,6 +236,204 @@ def development_plan(data, idx, pids):
     return plan[:5]
 
 
+# ---------- what to research ----------
+
+TECHS = {int(k): v for k, v in CIV_DATA.get("techs", {}).items()}
+TECH_BY_TYPE = {v["type"]: k for k, v in TECHS.items()}
+POLICIES = {int(k): v for k, v in CIV_DATA.get("policies", {}).items()}
+BRANCHES = {int(k): v for k, v in CIV_DATA.get("branches", {}).items()}
+BRANCH_BY_TYPE = {v["type"].replace("POLICY_BRANCH_", ""): k for k, v in BRANCHES.items()}
+
+# Techs that fix a problem, earliest first: the first one you lack is the goal
+PROBLEM_TECHS = {
+    "defence": ("армия слабее соседей", ["TECH_BRONZE_WORKING", "TECH_MASONRY", "TECH_CONSTRUCTION",
+                                         "TECH_MACHINERY", "TECH_GUNPOWDER", "TECH_RIFLING"]),
+    "happiness": ("недовольство", ["TECH_CONSTRUCTION", "TECH_PHILOSOPHY", "TECH_PRINTING_PRESS"]),
+    "gold": ("отрицательный доход", ["TECH_CURRENCY", "TECH_BANKING", "TECH_ECONOMICS"]),
+    "science": ("отставание в науке", ["TECH_WRITING", "TECH_EDUCATION", "TECH_SCIENTIFIC_THEORY"]),
+    "growth": ("мало городов и еды", ["TECH_POTTERY", "TECH_CALENDAR", "TECH_CIVIL_SERVICE"]),
+}
+FOCUS_TECHS = [
+    ("Наука", ["TECH_WRITING", "TECH_PHILOSOPHY", "TECH_EDUCATION", "TECH_SCIENTIFIC_THEORY", "TECH_PLASTIC"]),
+    ("Культура", ["TECH_DRAMA", "TECH_ACOUSTICS", "TECH_ARCHAEOLOGY", "TECH_RADIO"]),
+    ("Религия", ["TECH_CALENDAR", "TECH_PHILOSOPHY", "TECH_THEOLOGY"]),
+    ("Завоевание", ["TECH_BRONZE_WORKING", "TECH_IRON_WORKING", "TECH_STEEL", "TECH_GUNPOWDER", "TECH_DYNAMITE"]),
+    ("Дипломатия", ["TECH_CURRENCY", "TECH_BANKING", "TECH_ECONOMICS"]),
+    ("Экономика", ["TECH_CURRENCY", "TECH_BANKING", "TECH_ECONOMICS"]),
+    ("Широкая", ["TECH_POTTERY", "TECH_CURRENCY", "TECH_CIVIL_SERVICE"]),
+    ("Любая", ["TECH_WRITING", "TECH_CURRENCY", "TECH_EDUCATION"]),
+]
+
+
+def id_set(value):
+    """Logger id lists: '3,7,12' (text), a single id parsed as a number, or empty."""
+    if value is None or value == "":
+        return set()
+    if isinstance(value, float):
+        return {int(value)}
+    return {int(x) for x in str(value).split(",") if x.strip().isdigit()}
+
+
+def _missing_path(goal, known):
+    """Techs still needed for `goal` (prerequisites first)."""
+    need, stack = set(), [goal]
+    while stack:
+        t = stack.pop()
+        if t in known or t in need or t not in TECHS:
+            continue
+        need.add(t)
+        stack.extend(TECHS[t]["prereqs"])
+    return sorted(need, key=lambda t: (TECHS[t]["era"], TECHS[t]["cost"]))
+
+
+def research_plan(data, warns_levels=None):
+    """Up to 3 (goal, reason, research_now, steps). None if the log has no tech list."""
+    me = data.me
+    if me is None or me not in data.series or not data.series[me]:
+        return None
+    s = data.series[me][max(data.series[me])]
+    if "techIds" not in s or not TECHS:
+        return None
+    known = id_set(s["techIds"])
+    civ = data.names.get(me, "")
+    focus, _ = STRATEGY.get(civ, ("", ""))
+    others = [data.series[p][max(data.series[p])] for p in data.series if p != me]
+    top_mil = max([o.get("military", 0) for o in others] or [0])
+
+    goals = []   # (reason, tech type)
+
+    def first_missing(types):
+        return next((x for x in types if x in TECH_BY_TYPE and TECH_BY_TYPE[x] not in known), None)
+
+    problems = []
+    if top_mil and s.get("military", 0) / top_mil < 0.6:
+        problems.append("defence")
+    if s.get("happiness", 0) < 0:
+        problems.append("happiness")
+    if s.get("goldRate", 0) < 0:
+        problems.append("gold")
+    sci = sorted([o.get("science", 0) for o in others] + [s.get("science", 0)], reverse=True)
+    if sci.index(s.get("science", 0)) + 1 > (len(sci) + 1) / 2:
+        problems.append("science")
+    if s.get("cities", 0) < 3 or s.get("starvingCities", 0) > 0:
+        problems.append("growth")
+    for p in problems[:2]:   # leave room for your uniques and focus
+        reason, types = PROBLEM_TECHS[p]
+        tt = first_missing(types)
+        if tt:
+            goals.append((reason, tt))
+
+    # your next unique unit / building
+    for u in sorted(uniques(civ), key=lambda u: u.get("era") or 99):
+        tid = next((k for k, v in TECHS.items() if v["name"] == u.get("tech")), None)
+        if tid is not None and tid not in known:
+            goals.append((f"уникальный {u['kind']} {u['name']}", TECHS[tid]["type"]))
+            break
+
+    for key, types in FOCUS_TECHS:
+        if key in focus:
+            tt = first_missing(types)
+            if tt:
+                goals.append((f"фокус «{focus}»", tt))
+            break
+
+    plan, seen = [], set()
+    for reason, tt in goals:
+        goal = TECH_BY_TYPE[tt]
+        if goal in seen:
+            continue
+        seen.add(goal)
+        path = _missing_path(goal, known)
+        now = [t for t in path if all(p in known for p in TECHS[t]["prereqs"])]
+        plan.append((TECHS[goal]["name"], reason, [TECHS[t]["name"] for t in now], len(path)))
+        if len(plan) == 3:
+            break
+    return plan
+
+
+# ---------- social policies ----------
+
+FOCUS_BRANCHES = [
+    ("Наука", ["TRADITION", "RATIONALISM", "PATRONAGE"], "FREEDOM"),
+    ("Культура", ["TRADITION", "AESTHETICS", "RATIONALISM"], "FREEDOM"),
+    ("Религия", ["TRADITION", "PIETY", "RATIONALISM"], "ORDER"),
+    ("Завоевание", ["LIBERTY", "HONOR", "COMMERCE", "RATIONALISM"], "AUTOCRACY"),
+    ("Дипломатия", ["LIBERTY", "PATRONAGE", "COMMERCE"], "FREEDOM"),
+    ("Экономика", ["TRADITION", "COMMERCE", "PATRONAGE"], "FREEDOM"),
+    ("Широкая", ["LIBERTY", "COMMERCE", "RATIONALISM"], "ORDER"),
+    ("Любая", ["TRADITION", "RATIONALISM", "AESTHETICS"], "FREEDOM"),
+]
+IDEOLOGIES = {"FREEDOM", "ORDER", "AUTOCRACY"}
+
+
+def policy_plan(data):
+    """List of advice lines about social policies. None if the log has no policy list."""
+    me = data.me
+    if me is None or me not in data.series or not data.series[me]:
+        return None
+    s = data.series[me][max(data.series[me])]
+    if "policyIds" not in s or not POLICIES:
+        return None
+    adopted = id_set(s["policyIds"])
+    unlocked = id_set(s.get("branchIds"))
+    civ = data.names.get(me, "")
+    focus, _ = STRATEGY.get(civ, ("", ""))
+    order, ideology = next(((b, i) for k, b, i in FOCUS_BRANCHES if k in focus), FOCUS_BRANCHES[-1][1:])
+    order = list(order)
+    # tall vs wide opener depends on how many cities you actually have
+    if order[0] == "TRADITION" and s.get("cities", 0) >= 5:
+        order[0] = "LIBERTY"
+    elif order[0] == "LIBERTY" and s.get("cities", 0) <= 2 and max(data.series[me]) > 40:
+        order[0] = "TRADITION"
+    era = current_era(s)
+    lines = []
+
+    # time to the next policy
+    cost, have, rate = s.get("GetNextPolicyCost", 0), s.get("culturePoints", s.get("GetJONSCulture", 0)), s.get("culture", 0)
+    if cost and rate:
+        left = max(0, cost - have)
+        lines.append(f"Следующая политика через ~{-(-left // rate):.0f} ход(ов) ({have:g}/{cost:g} культуры, +{rate:g}/ход).")
+
+    def next_in_branch(bid):
+        cands = [pid for pid, p in POLICIES.items()
+                 if p["branch"] == bid and pid not in adopted and all(x in adopted for x in p["prereqs"])
+                 and not p.get("level")]
+        return min(cands) if cands else None
+
+    open_branches = [b for b in (BRANCH_BY_TYPE.get(t) for t in order) if b in unlocked]
+    open_branches += [b for b in unlocked if b not in open_branches and BRANCHES[b]["type"].split("_")[-1] not in IDEOLOGIES]
+    for bid in open_branches:
+        nxt = next_in_branch(bid)
+        if nxt is not None:
+            p = POLICIES[nxt]
+            help_ = p["help"][len(p["name"]):].strip() if p["help"].startswith(p["name"]) else p["help"]
+            lines.append(f"Берите: «{p['name']}» (ветка «{BRANCHES[bid]['name']}»). {help_[:160]}")
+            break
+    else:
+        for t in order:
+            bid = BRANCH_BY_TYPE.get(t)
+            if bid is None or bid in unlocked:
+                continue
+            b = BRANCHES[bid]
+            if era >= b["era"]:
+                lines.append(f"Откройте ветку «{b['name']}» — она лучше всего подходит под фокус «{focus or 'универсальный'}».")
+            else:
+                lines.append(f"Следующая ветка — «{b['name']}», откроется в эпоху «{ERA_NAMES.get(b['era'], b['era'])}». "
+                             "Пока копите культуру или берите из открытых веток.")
+            break
+
+    plan_names = " → ".join(BRANCHES[BRANCH_BY_TYPE[t]]["name"] for t in order if t in BRANCH_BY_TYPE)
+    lines.append(f"Порядок веток для вас: {plan_names}.")
+    ideo = BRANCHES.get(BRANCH_BY_TYPE.get(ideology))
+    if ideo:
+        has_ideo = any(BRANCHES[b]["type"].split("_")[-1] in IDEOLOGIES for b in unlocked)
+        if era >= 4 and not has_ideo:
+            lines.append(f"Идеология: «{ideo['name']}» (откроется после 3 фабрик или в Новейшее время).")
+        elif era < 4:
+            lines.append(f"Идеология в будущем: «{ideo['name']}».")
+    return lines
+
+
 def _rank(values, mine, higher_is_better=True):
     better = sum(1 for v in values if (v > mine if higher_is_better else v < mine))
     return better + 1

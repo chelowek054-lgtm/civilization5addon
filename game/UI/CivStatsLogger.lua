@@ -1,4 +1,4 @@
--- CivStatsLogger: writes per-turn stats of every major civ to Lua.log.
+﻿-- CivStatsLogger: writes per-turn stats of every major civ to Lua.log.
 -- Only reads game state, so it never causes multiplayer desyncs.
 -- Line format: CIVSTATS|turn|playerId|isMe|met|civName|key=value;key=value;...
 
@@ -114,6 +114,28 @@ local function relation(pMe, myTeam, p, team)
 	return r
 end
 
+-- Your own research and social policies (only for the active player), as
+-- comma-separated database IDs so the viewer can suggest what to take next.
+local function progress(p, pTeam)
+	local techs, policies, branches = {}, {}, {}
+	for t in GameInfo.Technologies() do
+		if pTeam:IsHasTech(t.ID) then techs[#techs + 1] = t.ID end
+	end
+	for pol in GameInfo.Policies() do
+		if p:HasPolicy(pol.ID) then policies[#policies + 1] = pol.ID end
+	end
+	for b in GameInfo.PolicyBranchTypes() do
+		if p:IsPolicyBranchUnlocked(b.ID) then branches[#branches + 1] = b.ID end
+	end
+	return {
+		techIds = table.concat(techs, ","),
+		policyIds = table.concat(policies, ","),
+		branchIds = table.concat(branches, ","),
+		research = safe(p.GetCurrentResearch, p),
+		culturePoints = safe(p.GetJONSCulture, p),
+	}
+end
+
 local function LogTurn()
 	local turn = Game.GetGameTurn()
 	local me = Game.GetActivePlayer()
@@ -129,6 +151,8 @@ local function LogTurn()
 			local s = collect(p, Teams[team])
 			if i ~= me then
 				for k, v in pairs(relation(Players[me], myTeam, p, team)) do s[k] = v end
+			else
+				for k, v in pairs(progress(p, Teams[team])) do s[k] = v end
 			end
 			for k, v in pairs(s) do
 				parts[#parts + 1] = k .. "=" .. tostring(v)
