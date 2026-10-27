@@ -159,9 +159,12 @@ across sessions: the logger writes a game id (your civ, starting tile, map size)
 and each turn is stored once even if you reload an older save.
 ### Overlay
 
-To see the game behind the viewer, run Civ 5 in **windowed / borderless** mode;
-exclusive fullscreen draws over every other window. On Linux, transparency needs
-a compositing window manager.
+Civ 5 in **exclusive fullscreen** covers every other window, so the panel cannot stay on
+top of it — the panel says so. In the game: *Options → Video*, untick **Fullscreen**. Civ 5
+has no borderless mode of its own, so on Windows the panel removes the frame of the game
+window and stretches it over the whole monitor (nothing in the game changes; it is undone
+when the game restarts). To keep the frame, set `"borderless_game": false` in
+`overlay_settings.json`. On Linux, transparency needs a compositing window manager.
 
 ### Viewing a recorded game
 
@@ -352,9 +355,12 @@ Steam (включая Steam из Flatpak).
 один раз, даже если вы загрузили более раннее сохранение.
 ### Окно поверх игры
 
-Чтобы окно было видно поверх игры, запускайте Civ 5 в **оконном / безрамочном** режиме:
-в эксклюзивном полноэкранном режиме игра перекрывает все окна. На Linux для
-прозрачности нужен композитный оконный менеджер.
+В **эксклюзивном полноэкранном режиме** Civ 5 перекрывает все окна, и панель не может быть
+поверх неё — панель сама об этом скажет. В игре: *Настройки → Видео*, снимите **«Полноэкранный режим»**.
+Своего безрамочного режима у Civ 5 нет, поэтому на Windows панель сама убирает рамку окна
+игры и растягивает его на весь монитор (в самой игре ничего не меняется, после перезапуска
+игры всё как было). Чтобы оставить рамку, задайте `"borderless_game": false` в
+`overlay_settings.json`. На Linux для прозрачности нужен композитный оконный менеджер.
 
 ### Просмотр сохранённой партии
 

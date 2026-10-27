@@ -13,6 +13,7 @@ import time
 import dearpygui.dearpygui as dpg
 
 import advisor
+import gamewindow
 from civstats import LOG_PATH, Data
 from metrics_tree import compute_indices
 
@@ -376,6 +377,21 @@ class Overlay:
         self.settings.update(mode=self.mode, alpha=self.alpha_i)
         save_settings(self.settings)
 
+    def check_game_window(self):
+        """Exclusive fullscreen → remember to warn; windowed → make it borderless."""
+        hwnd, exe = gamewindow.find_game()
+        self.game_fullscreen = bool(hwnd) and gamewindow.exclusive_fullscreen(
+            exe, os.path.dirname(os.path.dirname(LOG_PATH)))
+        if hwnd and not self.game_fullscreen and self.settings.get("borderless_game", True):
+            gamewindow.make_borderless(hwnd)
+
+    def game_window_problem(self):
+        if getattr(self, "game_fullscreen", False):
+            return "yellow", ("Игра в полноэкранном режиме — панель не может быть поверх неё. "
+                              "Настройки → Видео: снимите «Полноэкранный режим»; "
+                              "панель сама растянет окно игры на весь экран без рамки.")
+        return None
+
     def maybe_drag(self):
         x, y = dpg.get_mouse_pos(local=False)
         on_button = any(dpg.is_item_hovered(b) for b in ("btn_mode", "btn_alpha", "btn_full", "btn_close"))
@@ -427,7 +443,7 @@ class Overlay:
             dpg.set_value(f"r_{key}", rank)
             dpg.configure_item(f"v_{key}", color=color or (230, 230, 230))
             dpg.configure_item(f"r_{key}", color=color or DIM)
-        diag = self.data.diagnose()   # setup problems beat game advice
+        diag = self.data.diagnose() or self.game_window_problem()   # setup problems beat game advice
         if diag:
             tip, tip_color = diag[1], LEVEL_COLOR[diag[0]]
         dpg.set_value("tip", tip)
@@ -441,7 +457,9 @@ class Overlay:
             now = time.monotonic()
             if now - self.last_poll > REFRESH_S:
                 self.last_poll = now
-                self.refresh(force=self.data.series == {})   # keep the setup status fresh
+                was_fullscreen = getattr(self, "game_fullscreen", False)
+                self.check_game_window()
+                self.refresh(force=self.data.series == {} or was_fullscreen != self.game_fullscreen)
             if now - last_top > 0.3:
                 last_top = now
                 keep_on_top()
