@@ -194,16 +194,21 @@ class Overlay:
                 dpg.add_theme_style(dpg.mvStyleVar_CellPadding, 4, 1)
 
         with dpg.window(tag="main", no_scrollbar=True):
-            with dpg.group(horizontal=True):
-                dpg.add_text("Civ 5 · статистика", tag="title", color=(220, 200, 140))
-                dpg.add_spacer(width=118)
-                dpg.add_button(label="o", width=20, callback=self.cycle_alpha)
-                with dpg.tooltip(dpg.last_item()):
-                    dpg.add_text("Прозрачность")
-                dpg.add_button(label="+", width=20, callback=self.open_full)
-                with dpg.tooltip(dpg.last_item()):
-                    dpg.add_text("Подробный анализ")
-                dpg.add_button(label="x", width=20, callback=lambda: dpg.stop_dearpygui())
+            # Title on the left, buttons pinned to the right edge (stretch + fixed column)
+            with dpg.table(header_row=False, policy=dpg.mvTable_SizingFixedFit):
+                dpg.add_table_column(width_stretch=True)
+                dpg.add_table_column(width_fixed=True)
+                with dpg.table_row():
+                    dpg.add_text("Civ 5 · статистика", tag="title", color=(220, 200, 140))
+                    with dpg.group(horizontal=True):
+                        dpg.add_button(label="o", width=20, tag="btn_alpha", callback=self.cycle_alpha)
+                        with dpg.tooltip(dpg.last_item()):
+                            dpg.add_text("Прозрачность")
+                        dpg.add_button(label="+", width=20, tag="btn_full", callback=self.open_full)
+                        with dpg.tooltip(dpg.last_item()):
+                            dpg.add_text("Подробный анализ")
+                        dpg.add_button(label="x", width=20, tag="btn_close",
+                                       callback=lambda: dpg.stop_dearpygui())
 
             with dpg.plot(height=170, width=-1, no_menus=True, no_box_select=True, no_mouse_pos=True):
                 dpg.add_plot_axis(dpg.mvXAxis, tag="x", no_gridlines=True)
@@ -235,7 +240,8 @@ class Overlay:
 
     def maybe_drag(self):
         x, y = dpg.get_mouse_pos(local=False)
-        if y < 22 and x < WIDTH - 80:   # title row, away from the buttons
+        on_button = any(dpg.is_item_hovered(b) for b in ("btn_alpha", "btn_full", "btn_close"))
+        if y < 26 and not on_button:   # title row, not on a button
             start_native_drag()
 
     def cycle_alpha(self):

@@ -31,6 +31,24 @@ and other players don't need to install it.
   the current game keeps being recorded in the background.
 - Civs you haven't met are hidden by default.
 
+### Reading the overlay
+
+| Element | Meaning |
+|---|---|
+| **Title** `Civ 5 · ход N` | Current turn. Drag the window by this row. |
+| `o` · `+` · `x` | Transparency (88% → 70% → opaque) · open the full analysis window · close. |
+| **Graph** | Overall strength of every civ you have met, turn by turn. The index is 0–100: 100 = best of the visible civs, 0 = worst. Your line is the thick one; the line under the graph names the current leader in its colour. A falling line means you are falling behind even if your own numbers grow. |
+| **Общая сила** (Strength) | Your overall index now and your place (`6/6` = last of six). |
+| **Наука/ход** (Science) | Science per turn and your place. |
+| **Золото/ход** (Gold) | Net gold per turn, treasury in brackets, your place. Red when the income is negative. |
+| **Армия** (Army) | Your military strength as a share of the strongest rival. Red below 30%, yellow below 60%. |
+| **Довольство** (Happiness) | Empire happiness. Yellow below 0 (slower growth), red below −10 (unrest). |
+| **Города** (Cities) | Your cities, rivals' average in brackets. |
+| **Эпоха** (Era) | Current era; **ПИК** means your civ's unique units are in their power window right now. |
+| **Bottom line** | The single most urgent tip from the advisor (red = act now, yellow = watch, green = all fine). |
+
+Colours: green = first place / healthy, yellow = risk, red = last place / problem, white = in between.
+Click any row label to open the full window on that branch of the metric tree (Era opens the advisor).
 ### Requirements
 
 - Civilization V with **Brave New World** (Windows, or Linux: native port or Proton)
@@ -184,6 +202,24 @@ python viewer/civstats.py saves/<file>.log
   при этом продолжает записываться в фоне.
 - Цивилизации, которых вы ещё не встретили, по умолчанию скрыты.
 
+### Как читать панель
+
+| Элемент | Что значит |
+|---|---|
+| **Заголовок** `Civ 5 · ход N` | Текущий ход. За эту строку окно перетаскивается. |
+| `o` · `+` · `x` | Прозрачность (88% → 70% → без прозрачности) · открыть подробное окно · закрыть. |
+| **График** | Общая сила всех встреченных цивилизаций по ходам. Индекс 0–100: 100 — лучший среди видимых, 0 — худший. Ваша линия — толстая; строка под графиком называет текущего лидера его цветом. Падающая линия значит, что вы отстаёте, даже если ваши цифры растут. |
+| **Общая сила** | Ваш общий индекс сейчас и место (`6/6` — последний из шести). |
+| **Наука/ход** | Наука за ход и ваше место. |
+| **Золото/ход** | Чистый доход за ход, в скобках — казна, ваше место. Красным — если доход отрицательный. |
+| **Армия** | Ваша военная мощь в процентах от сильнейшего соперника. Красным — меньше 30%, жёлтым — меньше 60%. |
+| **Довольство** | Довольство империи. Жёлтым — меньше 0 (рост замедлен), красным — меньше −10 (бунты). |
+| **Города** | Число ваших городов, в скобках — среднее у соперников. |
+| **Эпоха** | Текущая эпоха; **ПИК** — сейчас окно силы уникальных юнитов вашей цивилизации. |
+| **Нижняя строка** | Самый срочный совет советника (красный — действовать сейчас, жёлтый — следить, зелёный — всё в порядке). |
+
+Цвета: зелёный — первое место или всё хорошо, жёлтый — риск, красный — последнее место или проблема, белый — между ними.
+Клик по названию строки открывает подробное окно на этой ветке дерева показателей («Эпоха» открывает советника).
 ### Требования
 
 - Civilization V с **Brave New World** (Windows или Linux: нативная версия или Proton)
