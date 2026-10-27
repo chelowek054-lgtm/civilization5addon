@@ -52,14 +52,14 @@ Click any row label to open the full window on that branch of the metric tree (E
 ### Requirements
 
 - Civilization V with **Brave New World** (Windows, or Linux: native port or Proton)
-- Python 3.10+ with `matplotlib` and `tkinter`
+- Python 3.10+ with `tkinter`; other dependencies (`matplotlib`, `dearpygui`) are installed into the project's `.venv` by `setup.bat` / `setup.sh` (Fedora: `sudo dnf install python3-tkinter`, Arch: `sudo pacman -S tk`). The launchers use `.venv` automatically and fall back to the system Python if it is missing.
 
 ### Installation — Windows
 
-1. Install Python dependencies:
+1. Create the project's virtual environment `.venv` and install the dependencies from `requirements.txt` (double-click `setup.bat` or run):
 
    ```bash
-   pip install matplotlib dearpygui
+   setup.bat
    ```
 
 2. Install the logger into the game and enable Lua logging:
@@ -84,20 +84,17 @@ Uninstall: `powershell -ExecutionPolicy Bypass -File install.ps1 -Uninstall`
 Works with the native Linux port and with Proton; the script finds the game in the
 usual Steam folders (including Flatpak Steam).
 
-1. Install Python dependencies:
+1. Install tkinter and venv from the system, then create `.venv` with the dependencies:
 
    ```bash
-   sudo apt install python3-tk python3-matplotlib python3-pip
-   pip install --user dearpygui
+   sudo apt install python3-tk python3-venv
+   chmod +x setup.sh install.sh run_viewer.sh run_analysis.sh
+   ./setup.sh
    ```
-
-   (Fedora: `sudo dnf install python3-tkinter python3-matplotlib`,
-   Arch: `sudo pacman -S tk python-matplotlib`.)
 
 2. Start the game once (so `config.ini` exists), close it, then install the logger:
 
    ```bash
-   chmod +x install.sh run_viewer.sh
    ./install.sh
    ```
 
@@ -150,7 +147,7 @@ Choose it in the *Игра* (Game) drop-down at the top of the window (newest fi
 `▶ Текущая игра` is the live game). You can also pass a file from `saves/`:
 
 ```bash
-python viewer/civstats.py saves/<file>.log
+run_analysis.bat saves/<file>.log
 ```
 
 ### Project layout
@@ -160,6 +157,7 @@ python viewer/civstats.py saves/<file>.log
 | `game/UI/CivStatsLogger.lua` | In-game logger (one `CIVSTATS|…` line per civ per turn) |
 | `viewer/civstats.py` | Viewer window, log reader, game archive |
 | `viewer/metrics_tree.py` | Metric tree and index calculation |
+| `requirements.txt`, `setup.bat`, `setup.sh` | Python dependencies and `.venv` setup |
 | `install.ps1`, `install.sh` | Installer / uninstaller (Windows / Linux) |
 | `run_viewer.bat`, `run_viewer.sh` | Overlay launchers (Windows / Linux) |
 | `run_analysis.bat`, `run_analysis.sh` | Full analysis window launchers |
@@ -223,14 +221,14 @@ python viewer/civstats.py saves/<file>.log
 ### Требования
 
 - Civilization V с **Brave New World** (Windows или Linux: нативная версия или Proton)
-- Python 3.10+ с `matplotlib` и `tkinter`
+- Python 3.10+ с `tkinter`; остальные зависимости (`matplotlib`, `dearpygui`) ставятся в окружение проекта `.venv` через `setup.bat` / `setup.sh` (Fedora: `sudo dnf install python3-tkinter`, Arch: `sudo pacman -S tk`). Скрипты запуска сами используют `.venv`, а если его нет — системный Python.
 
 ### Установка — Windows
 
-1. Установите зависимости Python:
+1. Создайте виртуальное окружение проекта `.venv` и установите зависимости из `requirements.txt` (двойной клик по `setup.bat` или команда):
 
    ```bash
-   pip install matplotlib dearpygui
+   setup.bat
    ```
 
 2. Установите логгер в игру и включите Lua-логирование:
@@ -255,20 +253,17 @@ python viewer/civstats.py saves/<file>.log
 Работает с нативной Linux-версией и с Proton. Скрипт сам ищет игру в обычных папках
 Steam (включая Steam из Flatpak).
 
-1. Установите зависимости Python:
+1. Установите tkinter и venv из системы, затем создайте `.venv` с зависимостями:
 
    ```bash
-   sudo apt install python3-tk python3-matplotlib python3-pip
-   pip install --user dearpygui
+   sudo apt install python3-tk python3-venv
+   chmod +x setup.sh install.sh run_viewer.sh run_analysis.sh
+   ./setup.sh
    ```
-
-   (Fedora: `sudo dnf install python3-tkinter python3-matplotlib`,
-   Arch: `sudo pacman -S tk python-matplotlib`.)
 
 2. Запустите игру один раз (чтобы появился `config.ini`), закройте её и установите логгер:
 
    ```bash
-   chmod +x install.sh run_viewer.sh
    ./install.sh
    ```
 
@@ -321,7 +316,7 @@ Steam (включая Steam из Flatpak).
 данные). Можно также передать файл из `saves/`:
 
 ```bash
-python viewer/civstats.py saves/<файл>.log
+run_analysis.bat saves/<файл>.log
 ```
 
 ### Структура проекта
@@ -331,6 +326,7 @@ python viewer/civstats.py saves/<файл>.log
 | `game/UI/CivStatsLogger.lua` | Логгер в игре (одна строка `CIVSTATS|…` на цивилизацию за ход) |
 | `viewer/civstats.py` | Окно программы, чтение лога, архив партий |
 | `viewer/metrics_tree.py` | Дерево показателей и расчёт индексов |
+| `requirements.txt`, `setup.bat`, `setup.sh` | Зависимости Python и создание `.venv` |
 | `install.ps1`, `install.sh` | Установка / удаление (Windows / Linux) |
 | `run_viewer.bat`, `run_viewer.sh` | Запуск компактной панели (Windows / Linux) |
 | `run_analysis.bat`, `run_analysis.sh` | Запуск подробного окна |
