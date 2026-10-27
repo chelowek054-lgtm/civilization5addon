@@ -241,10 +241,11 @@ class Data:
                 except ValueError:
                     pass
             if "CIVSTATS_START|" in line:
-                # a different game was loaded: start fresh (keep what we know about the logger)
-                version, errors = self.version, self.errors
+                # a different game was loaded: start fresh. The logger has just loaded
+                # fine, so errors from earlier failed loads no longer apply.
+                version = self.version
                 self.reset()
-                self.version, self.errors, self.in_game = version, errors, True
+                self.version, self.in_game = version, True
                 if self.archive:
                     self.archive.new_game(line)
                 changed = True
