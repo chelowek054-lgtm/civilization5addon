@@ -15,7 +15,12 @@ $line = "`t<LuaContext FileName=`"CivStatsLogger`" ID=`"CivStatsLogger`" Hidden=
 $oldDlc = Join-Path $GameDir "Assets\DLC\CivStats"
 if (Test-Path $oldDlc) { Remove-Item $oldDlc -Recurse -Force }
 
+# Background archiver started at logon: saves every game to saves/ even when
+# the overlay is closed (Lua.log is wiped on the next game launch).
+$startup = Join-Path ([Environment]::GetFolderPath('Startup')) "CivStats archiver.lnk"
+
 if ($Uninstall) {
+    Remove-Item $startup -ErrorAction SilentlyContinue
     if (Test-Path $backup) { Move-Item $backup $inGame -Force }
     Remove-Item "$ui\CivStatsLogger.lua", "$ui\CivStatsLogger.xml" -ErrorAction SilentlyContinue
     Write-Host "Uninstalled."
@@ -43,5 +48,18 @@ if (Test-Path $cfg) {
     $c = Get-Content $cfg -Raw
     $c = $c -replace 'LoggingEnabled\s*=\s*0', 'LoggingEnabled = 1'
     [IO.File]::WriteAllText($cfg, $c)
+}
+$pyw = Join-Path $PSScriptRoot ".venv\Scripts\pythonw.exe"
+if (-not (Test-Path $pyw)) { $pyw = (Get-Command pythonw.exe -ErrorAction SilentlyContinue).Source }
+if ($pyw) {
+    $lnk = (New-Object -ComObject WScript.Shell).CreateShortcut($startup)
+    $lnk.TargetPath = $pyw
+    $lnk.Arguments = "`"$PSScriptRoot\viewer\archiver.py`""
+    $lnk.WorkingDirectory = "$PSScriptRoot\viewer"
+    $lnk.Save()
+    Start-Process $pyw "`"$PSScriptRoot\viewer\archiver.py`"" -WorkingDirectory "$PSScriptRoot\viewer"
+    Write-Host "Archiver runs at logon and is running now."
+} else {
+    Write-Host "pythonw.exe not found: run setup.bat, then install.ps1 again to start the archiver at logon."
 }
 Write-Host "Installed into $ui; logging enabled."

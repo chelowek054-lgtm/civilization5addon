@@ -26,7 +26,7 @@ and other players don't need to install it.
   see it per turn for every civ, plus what your own index is made of.
 - **Dashboard**, single-metric graphs and a summary table.
 - **Turn slider** — replay your game: graphs, tree, table and advisor show the state on any past turn (◀ ▶ step a turn, *Последний* returns to the latest).
-- **Automatic game archive** — every game is saved to `saves/` while the overlay or the analysis window is open.
+- **Automatic game archive** — a background archiver (`viewer/archiver.py`, started at logon by `install.ps1` and by the overlay) saves every game to `saves/` even when no window is open. Civ 5 wipes `Lua.log` on each launch, so this is what keeps a game after a crash.
 - **Game history** — pick any saved game from the *Игра* (Game) list to analyse it;
   the current game keeps being recorded in the background.
 - Civs you haven't met are hidden by default.
@@ -221,7 +221,7 @@ run_analysis.bat saves/<file>.log
   всех цивилизаций и из чего складывается ваш индекс.
 - **Панель**, графики по отдельным показателям и сводная таблица.
 - **Ползунок ходов** — пересмотр партии: графики, дерево, таблица и советник показывают состояние на любом прошлом ходу (◀ ▶ — шаг на ход, «Последний» — вернуться к текущему).
-- **Автосохранение партий** — пока открыта панель или окно анализа, каждая игра сохраняется в `saves/`.
+- **Автосохранение партий** — фоновый архиватор (`viewer/archiver.py`, запускается при входе в Windows через `install.ps1` и вместе с панелью) сохраняет каждую игру в `saves/`, даже если окна закрыты. Игра стирает `Lua.log` при каждом запуске, поэтому без него партия после вылета пропадает.
 - **История игр** — выберите любую сохранённую партию в списке *Игра*, текущая
   при этом продолжает записываться в фоне.
 - Цивилизации, которых вы ещё не встретили, по умолчанию скрыты.

@@ -78,6 +78,41 @@ def log_stamp(line):
     return "0"
 
 
+def try_lock(path):
+    """Open file held with an exclusive lock, or None if another process holds it.
+    The OS releases the lock when the process exits, even after a crash."""
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    f = open(path, "a+")
+    try:
+        if sys.platform == "win32":
+            import msvcrt
+            f.seek(0)
+            msvcrt.locking(f.fileno(), msvcrt.LK_NBLCK, 1)
+        else:
+            import fcntl
+            fcntl.flock(f, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except OSError:
+        f.close()
+        return None
+    return f
+
+
+def start_archiver():
+    """Starts viewer/archiver.py in the background (it exits if one already runs)."""
+    import subprocess
+    exe = sys.executable
+    if sys.platform == "win32":
+        exe = exe.replace("python.exe", "pythonw.exe")
+        if not os.path.exists(exe):
+            exe = sys.executable
+    flags = 0x08000000 if sys.platform == "win32" else 0   # CREATE_NO_WINDOW
+    try:
+        subprocess.Popen([exe, os.path.join(os.path.dirname(os.path.abspath(__file__)), "archiver.py")],
+                         creationflags=flags, start_new_session=sys.platform != "win32")
+    except OSError:
+        pass
+
+
 class Archive:
     """Copies every game's stat lines into saves/<date>_<civ>_<game id>.log.
 
@@ -87,9 +122,9 @@ class Archive:
     the viewer or reloading an older save never duplicates anything.
     Logs from loggers before v3 have no game id and get one file per session.
 
-    The overlay and the analysis window both archive, so a game is saved
-    whichever of them is open; a lock file lets only one of them write at a
-    time, and the other takes over when it closes.
+    archiver.py (started by the windows and at logon) and both windows can
+    archive; a lock file lets only one of them write at a time, and another
+    takes over when it exits.
     """
 
     def __init__(self, folder):
@@ -102,23 +137,9 @@ class Archive:
         self.lock = None
 
     def _owns_lock(self):
-        if self.lock:
-            return True
-        os.makedirs(self.folder, exist_ok=True)
-        f = open(os.path.join(self.folder, ".archive.lock"), "a+")
-        try:
-            if sys.platform == "win32":
-                import msvcrt
-                f.seek(0)
-                msvcrt.locking(f.fileno(), msvcrt.LK_NBLCK, 1)
-            else:
-                import fcntl
-                fcntl.flock(f, fcntl.LOCK_EX | fcntl.LOCK_NB)
-        except OSError:
-            f.close()
-            return False
-        self.lock = f   # released by the OS when this process exits
-        return True
+        if not self.lock:
+            self.lock = try_lock(os.path.join(self.folder, ".archive.lock"))
+        return self.lock is not None
 
     def close(self):
         if self.f:
@@ -762,6 +783,8 @@ def main():
             pass
     beside = tuple(int(v) for v in args.beside.split(",")) if args.beside else None
     root = tk.Tk()
+    if not args.no_archive:
+        start_archiver()
     App(root, args.log, view=args.view, node=args.node, archive=not args.no_archive, beside=beside)
     root.mainloop()
 

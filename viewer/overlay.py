@@ -14,7 +14,7 @@ import dearpygui.dearpygui as dpg
 
 import advisor
 import gamewindow
-from civstats import LOG_PATH, Data
+from civstats import LOG_PATH, Data, start_archiver
 from metrics_tree import compute_indices
 
 TITLE = "Civ5 Stats Overlay"
@@ -510,6 +510,7 @@ class Overlay:
 
 
 def main():
+    start_archiver()
     Overlay(sys.argv[1] if len(sys.argv) > 1 else LOG_PATH).run()
 
 
