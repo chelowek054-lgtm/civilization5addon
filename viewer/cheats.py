@@ -1,12 +1,19 @@
 """Looks for signs of cheating by opponents in a recorded game.
 
-Compares each player's stats turn to turn and flags jumps the game rules
-hardly allow: several techs or policies at once, gold or units out of
-nowhere, an army that triples in a turn, a unit
-that gains a lot of experience at once or has more promotions than its
-experience allows (logger v4 records the most experienced units). Each flag has normal explanations
-too (a great scientist, a finished policy branch, a captured city, a sold
-building, a trade), so look at players with many flags, not at one flag.
+Covers what Civ 5 cheaters actually use, as far as it shows in the stats:
+- Cheat Engine tables and trainers edit stored gold, faith and culture or
+  multiply research: stock jumps beyond the per-turn income, and techs far
+  cheaper in science than everyone else's;
+- FireTuner (EnableTuner = 1 in config.ini) and the In-Game Editor mod give
+  techs, policies, units, cities, population, buildings, wonders and
+  promotions: several of them in one turn, units with more levels than
+  their experience allows (logger v4 records the most experienced units).
+Map hacks and a faked civ pick in the lobby change no numbers: these
+checks cannot see them.
+
+Each flag has honest explanations too (a great scientist, a finished policy
+branch, a captured city, a sold building, a trade), so look at players with
+many flags, not at one flag.
 
 The analysis window shows the same report in its «Проверка на читы» view.
 
@@ -70,6 +77,19 @@ def checks(prev, cur):
         out.append((1, f"население +{pop:.0f} без новых городов"))
     if g(prev, "gold") >= 0 and g(cur, "gold") > 5000 and g(prev, "gold") < 1000:
         out.append((3, f"казна {g(prev, 'gold'):.0f} → {g(cur, 'gold'):.0f}"))
+    # Cheat Engine / trainers edit stored faith and culture the same way as gold
+    faith_extra = g(cur, "GetFaith") - g(prev, "GetFaith") - g(prev, "faith")
+    if faith_extra > max(250, 10 * g(prev, "faith")):
+        out.append((2, f"вера +{faith_extra:.0f} сверх прироста"))
+    culture_got = g(cur, "GetJONSCultureEverGenerated") - g(prev, "GetJONSCultureEverGenerated")
+    if g(prev, "GetJONSCultureEverGenerated") > 0 and culture_got > max(300, 12 * g(prev, "culture")):
+        out.append((2, f"культура +{culture_got:.0f} за ход при {g(prev, 'culture'):.0f}/ход"))
+    # FireTuner / IGE: cities, happiness and wonders set by hand
+    if g(cur, "cities") - g(prev, "cities") >= 2:
+        out.append((1, f"+{g(cur, 'cities') - g(prev, 'cities'):.0f} города за ход"))
+    happy = g(cur, "happiness") - g(prev, "happiness")
+    if abs(happy) >= 25 and g(cur, "cities") == g(prev, "cities"):
+        out.append((1, f"довольство {happy:+.0f} за ход без смены городов"))
     wonders = g(cur, "GetNumWorldWonders") - g(prev, "GetNumWorldWonders")
     if wonders >= 2 and g(cur, "cities") <= g(prev, "cities"):
         out.append((1, f"+{wonders:.0f} чуда за ход"))
@@ -114,6 +134,29 @@ def unit_checks(prev, cur):
     return out
 
 
+def science_per_tech(turns):
+    """Science spent per tech learned over the recorded turns, None if too few techs."""
+    ts = sorted(turns)
+    gained = g(turns[ts[-1]], "techs") - g(turns[ts[0]], "techs")
+    if gained < 8:
+        return None
+    return sum(g(turns[t], "science") for t in ts[:-1]) / gained
+
+
+def research_check(pid, series):
+    """A research multiplier (trainer) shows as techs far cheaper than everyone else's."""
+    mine = science_per_tech(series[pid])
+    others = sorted(v for p, v in ((p, science_per_tech(t)) for p, t in series.items() if p != pid) if v)
+    if mine is None or len(others) < 2:
+        return []
+    median = others[len(others) // 2]
+    if mine < 0.4 * median:
+        last = max(series[pid])
+        return [(last, 3, f"технология обходится в {median / mine:.1f} раза дешевле, чем у остальных "
+                          f"({mine:.0f} колб против {median:.0f})")]
+    return []
+
+
 def analyse_series(series, names, me, show_me=False):
     """Report for already loaded data: [(score, name, turns, [(turn, weight, text)])]."""
     report = []
@@ -130,6 +173,7 @@ def analyse_series(series, names, me, show_me=False):
         best = max((lv for s in turns.values() for _, lv, _ in units(s).values()), default=0)
         if best >= 7:
             flags.append((ts[-1], 1, f"есть юнит {best}-го уровня"))
+        flags += research_check(pid, series)
         score = sum(w for _, w, _ in flags)
         report.append((score, names[pid], len(ts), flags))
     report.sort(key=lambda r: -r[0])
