@@ -6,4 +6,4 @@ cd "$(dirname "${BASH_SOURCE[0]}")"
 [ -x .venv/bin/python ] || python3 -m venv .venv
 .venv/bin/python -m pip install --upgrade pip
 .venv/bin/python -m pip install -r requirements.txt
-echo "Done. Start the overlay with ./start.sh"
+echo "Done. Start the stats window with ./start.sh"

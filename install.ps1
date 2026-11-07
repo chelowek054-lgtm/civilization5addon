@@ -16,7 +16,7 @@ $oldDlc = Join-Path $GameDir "Assets\DLC\CivStats"
 if (Test-Path $oldDlc) { Remove-Item $oldDlc -Recurse -Force }
 
 # Background archiver started at logon: saves every game to saves/ even when
-# the overlay is closed (Lua.log is wiped on the next game launch).
+# the stats window is closed (Lua.log is wiped on the next game launch).
 $startup = Join-Path ([Environment]::GetFolderPath('Startup')) "CivStats archiver.lnk"
 
 if ($Uninstall) {

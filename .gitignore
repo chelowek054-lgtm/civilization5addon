@@ -13,5 +13,3 @@ Thumbs.db
 .idea/
 games/
 
-# Overlay position and mode (per machine)
-overlay_settings.json

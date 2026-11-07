@@ -5,7 +5,7 @@ if not exist .venv\Scripts\python.exe python -m venv .venv || goto :error
 .venv\Scripts\python.exe -m pip install --upgrade pip
 .venv\Scripts\python.exe -m pip install -r requirements.txt || goto :error
 echo.
-echo Done. Start the overlay with start.bat
+echo Done. Start the stats window with start.bat
 exit /b 0
 :error
 echo Setup failed. Is Python 3.10+ installed and on PATH?

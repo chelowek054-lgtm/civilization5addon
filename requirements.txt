@@ -1,2 +1,1 @@
 matplotlib>=3.7
-dearpygui>=2.0

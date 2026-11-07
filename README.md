@@ -17,44 +17,29 @@ and other players don't need to install it.
 
 ### Features
 
-- **Compact overlay** (Dear PyGui, `start`) — a small always-on-top panel on the left edge under the science panel: one graph (overall strength of every civ, you in bold), the must-watch numbers with your rank (strength, science, gold, army vs. strongest rival, happiness, cities, era / power spike) and a one-line tip. Click any number or `+` to open the full analysis window on that branch; drag it by the title row; `o` cycles transparency.
-- **Full analysis window** (`run_analysis`) — everything below.
-- **Advisor** (default view) — red/yellow/green warnings while you play (too few cities, weak army vs. strongest neighbour, negative gold, unhappiness, falling behind in science, sharp drops in the metric tree), your civ's trait and unique units/buildings with the era and tech that unlock them, and its power-spike windows on an era timeline. It also gives a short **development plan** (defence first if a strong neighbour is close, expansion, your civ's focus vs. whoever leads it, weak neighbours as targets, runaway leaders) and a **neighbours list**: distance in tiles to each rival's nearest city you have revealed, war status, army ratio and its 10-turn trend, and their strongest side. Distances only use cities you have actually seen, so nothing hidden leaks. Finally, **what to research** (up to three goals: fixes for current problems, your next unique unit, your civ's focus — with the techs you can start right now) and **which social policies to take** (next policy in your open branch, branch order for your civ and city count, future ideology, turns until the next policy). The overlay shows the immediate pick in one line: *Изучать: … · Культура: …*. Civ data is read from the game's own database: `python tools/extract_civ_data.py` (re-run after DLC or game updates).
+- **Stats window** (Tkinter, `start`) — everything below.
+- **Advisor** (default view) — red/yellow/green warnings while you play (too few cities, weak army vs. strongest neighbour, negative gold, unhappiness, falling behind in science, sharp drops in the metric tree), your civ's trait and unique units/buildings with the era and tech that unlock them, and its power-spike windows on an era timeline. It also gives a short **development plan** (defence first if a strong neighbour is close, expansion, your civ's focus vs. whoever leads it, weak neighbours as targets, runaway leaders) and a **neighbours list**: distance in tiles to each rival's nearest city you have revealed, war status, army ratio and its 10-turn trend, and their strongest side. Distances only use cities you have actually seen, so nothing hidden leaks. Finally, **what to research** (up to three goals: fixes for current problems, your next unique unit, your civ's focus — with the techs you can start right now) and **which social policies to take** (next policy in your open branch, branch order for your civ and city count, future ideology, turns until the next policy). Civ data is read from the game's own database: `python tools/extract_civ_data.py` (re-run after DLC or game updates).
 - **Metric tree** — all stats are normalized to a 0–100 index (0 = worst civ, 100 = best)
   and grouped: *Overall strength → 8 groups (scale, economy, science, culture,
   faith, stability, military, score) → subgroups → raw stats*. Select any node to
   see it per turn for every civ, plus what your own index is made of.
 - **Dashboard**, single-metric graphs and a summary table.
 - **Turn slider** — replay your game: graphs, tree, table and advisor show the state on any past turn (◀ ▶ step a turn, *Последний* returns to the latest).
-- **Cheat check** — the `!` button on the overlay (or the «Проверка на читы» view / `python tools/cheat_check.py`) flags rivals' jumps the rules hardly allow: several techs or policies a turn, gold or army out of nowhere, units with more experience or promotions than combat gives.
-- **Automatic game archive** — a background archiver (`viewer/archiver.py`, started at logon by `install.ps1` and by the overlay) saves every game to `saves/` even when no window is open. Civ 5 wipes `Lua.log` on each launch, so this is what keeps a game after a crash.
+- **Cheat check** — the «Проверка на читы» button in the window (or `python tools/cheat_check.py`) flags rivals' jumps the rules hardly allow: several techs or policies a turn, gold or army out of nowhere, units with more experience or promotions than combat gives.
+- **Automatic game archive** — a background archiver (`viewer/archiver.py`, started at logon by `install.ps1` and by the window) saves every game to `saves/` even when no window is open. Civ 5 wipes `Lua.log` on each launch, so this is what keeps a game after a crash.
 - **Game history** — pick any saved game from the *Игра* (Game) list to analyse it;
   the current game keeps being recorded in the background.
 - Civs you haven't met are hidden by default.
 
-### Reading the overlay
-
-| Element | Meaning |
-|---|---|
-| **Title** `Civ 5 · ход N` | Current turn. Drag the window by this row. |
-| `-` · `o` · `+` · `x` | One-line mode (only the tip) / full panel · transparency (88% → 70% → opaque) · open the full analysis window · close. |
-| **Ctrl+Shift+S** | Works while you play (Windows): full panel → one line → hidden → full panel. Position, mode and transparency are remembered. |
-| **Graph** | Overall strength of every civ you have met, turn by turn. The index is 0–100: 100 = best of the visible civs, 0 = worst. Your line is the thick one; the line under the graph names the current leader in its colour. A falling line means you are falling behind even if your own numbers grow. |
-| **Общая сила** (Strength) | Your overall index now and your place (`6/6` = last of six). |
-| **Наука/ход** (Science) | Science per turn and your place. |
-| **Золото/ход** (Gold) | Net gold per turn, treasury in brackets, your place. Red when the income is negative. |
-| **Армия** (Army) | Your military strength as a share of the strongest rival. Red below 30%, yellow below 60%. |
-| **Довольство** (Happiness) | Empire happiness. Yellow below 0 (slower growth), red below −10 (unrest). |
-| **Города** (Cities) | Your cities, rivals' average in brackets. |
-| **Эпоха** (Era) | Current era; **ПИК** means your civ's unique units are in their power window right now. |
-| **Bottom line** | The single most urgent tip from the advisor (red = act now, yellow = watch, green = all fine). |
-
-Colours: green = first place / healthy, yellow = risk, red = last place / problem, white = in between.
-Click any row label to open the full window on that branch of the metric tree (Era opens the advisor).
+Benchmarks scale with the game: on Epic every "by turn N" and "over 10 turns" is
+stretched ×1.5 (Marathon ×3, Quick ×0.67); neighbour distance scales with the map,
+and the city-count target with land per player. A game keeps one file in `saves/`
+across sessions: the logger writes a game id (your civ, starting tile, map size),
+and each turn is stored once even if you reload an older save.
 ### Requirements
 
 - Civilization V with **Brave New World** (Windows, or Linux: native port or Proton)
-- Python 3.10+ with `tkinter`; other dependencies (`matplotlib`, `dearpygui`) are installed into the project's `.venv` by `setup.bat` / `setup.sh` (Fedora: `sudo dnf install python3-tkinter`, Arch: `sudo pacman -S tk`). The launchers use `.venv` automatically and fall back to the system Python if it is missing.
+- Python 3.10+ with `tkinter`; other dependencies (`matplotlib`) are installed into the project's `.venv` by `setup.bat` / `setup.sh` (Fedora: `sudo dnf install python3-tkinter`, Arch: `sudo pacman -S tk`). The launchers use `.venv` automatically and fall back to the system Python if it is missing.
 
 ### Installation — Windows
 
@@ -90,7 +75,7 @@ usual Steam folders (including Flatpak Steam).
 
    ```bash
    sudo apt install python3-tk python3-venv
-   chmod +x setup.sh install.sh start.sh run_analysis.sh
+   chmod +x setup.sh install.sh start.sh
    ./setup.sh
    ```
 
@@ -139,7 +124,7 @@ run the installer again.
 
 ### Checking that the logger works
 
-The panel tells you when something is wrong instead of the tip: logging disabled,
+The window tells you in its status line when something is wrong: logging disabled,
 the game is running but the logger is silent (re-run the installer — a Steam
 update or file check restores the original files), an old logger version, or a
 Lua error. After a few turns of a new game you can also run:
@@ -158,22 +143,13 @@ stretched ×1.5 (Marathon ×3, Quick ×0.67); neighbour distance scales with the
 and the city-count target with land per player. A game keeps one file in `saves/`
 across sessions: the logger writes a game id (your civ, starting tile, map size),
 and each turn is stored once even if you reload an older save.
-### Overlay
-
-Civ 5 in **exclusive fullscreen** covers every other window, so the panel cannot stay on
-top of it — the panel says so. In the game: *Options → Video*, untick **Fullscreen**. Civ 5
-has no borderless mode of its own, so on Windows the panel removes the frame of the game
-window and stretches it over the whole monitor (nothing in the game changes; it is undone
-when the game restarts). To keep the frame, set `"borderless_game": false` in
-`overlay_settings.json`. On Linux, transparency needs a compositing window manager.
-
 ### Viewing a recorded game
 
 Choose it in the *Игра* (Game) drop-down at the top of the window (newest first,
 `▶ Текущая игра` is the live game). You can also pass a file from `saves/`:
 
 ```bash
-run_analysis.bat saves/<file>.log
+start.bat saves/<file>.log
 ```
 
 ### Project layout
@@ -186,9 +162,9 @@ run_analysis.bat saves/<file>.log
 | `requirements.txt`, `setup.bat`, `setup.sh` | Python dependencies and `.venv` setup |
 | `install.ps1`, `install.sh` | Installer / uninstaller (Windows / Linux) |
 | `tools/check_log.py` | Checks a log: logger version, errors, missing fields |
-| `start.bat`, `start.sh` | Overlay launchers (Windows / Linux) |
-| `run_analysis.bat`, `run_analysis.sh` | Full analysis window launchers |
-| `viewer/overlay.py` | Compact Dear PyGui overlay |
+| `start.bat`, `start.sh` | Window launchers (Windows / Linux) |
+| `viewer/archiver.py` | Background game archiver |
+| `viewer/cheats.py`, `tools/cheat_check.py` | Cheat check |
 
 ### Notes
 
@@ -212,9 +188,8 @@ run_analysis.bat saves/<file>.log
 
 ### Возможности
 
-- **Компактная панель** (Dear PyGui, `start`) — маленькое окно поверх игры у левого края под панелью науки: один график (общая сила всех цивилизаций, вы — толстой линией), обязательные показатели с вашим местом (сила, наука, золото, армия против сильнейшего, довольство, города, эпоха / пик) и совет в одну строку. Клик по показателю или `+` открывает подробное окно сразу на этой ветке; перетаскивается за заголовок; `o` меняет прозрачность.
-- **Подробное окно** (`run_analysis`) — всё, что ниже.
-- **Советник** (вид по умолчанию) — красные, жёлтые и зелёные предупреждения во время игры (мало городов, армия слабее сильнейшего соседа, отрицательный доход, недовольство, отставание в науке, резкие падения в дереве показателей), особенность вашей цивилизации, уникальные юниты и здания с эпохой и технологией открытия и окна силы на шкале эпох. Ещё он даёт короткий **план развития** (сначала оборона, если рядом сильный сосед; расширение; фокус вашей цивилизации против лидера в нём; слабые соседи как цели; лидер, уходящий в отрыв) и **список соседей**: расстояние в клетках до ближайшего видимого вам города каждого соперника, война, соотношение армий и его динамика за 10 ходов, сильнейшая сторона соперника. Расстояние считается только по городам, которые вы уже видели, поэтому скрытые данные не раскрываются. И наконец, **что изучать** (до трёх целей: решение текущих проблем, следующий уникальный юнит, фокус цивилизации — с технологиями, которые можно начать прямо сейчас) и **что выбирать в культуре** (следующая политика в открытой ветке, порядок веток под вашу цивилизацию и число городов, будущая идеология, через сколько ходов следующая политика). Компактная панель показывает ближайший выбор одной строкой: *Изучать: … · Культура: …*. Данные о цивилизациях берутся из базы самой игры: `python tools/extract_civ_data.py` (перезапустите после обновлений игры или DLC).
+- **Окно статистики** (Tkinter, `start`) — всё, что ниже.
+- **Советник** (вид по умолчанию) — красные, жёлтые и зелёные предупреждения во время игры (мало городов, армия слабее сильнейшего соседа, отрицательный доход, недовольство, отставание в науке, резкие падения в дереве показателей), особенность вашей цивилизации, уникальные юниты и здания с эпохой и технологией открытия и окна силы на шкале эпох. Ещё он даёт короткий **план развития** (сначала оборона, если рядом сильный сосед; расширение; фокус вашей цивилизации против лидера в нём; слабые соседи как цели; лидер, уходящий в отрыв) и **список соседей**: расстояние в клетках до ближайшего видимого вам города каждого соперника, война, соотношение армий и его динамика за 10 ходов, сильнейшая сторона соперника. Расстояние считается только по городам, которые вы уже видели, поэтому скрытые данные не раскрываются. И наконец, **что изучать** (до трёх целей: решение текущих проблем, следующий уникальный юнит, фокус цивилизации — с технологиями, которые можно начать прямо сейчас) и **что выбирать в культуре** (следующая политика в открытой ветке, порядок веток под вашу цивилизацию и число городов, будущая идеология, через сколько ходов следующая политика). Данные о цивилизациях берутся из базы самой игры: `python tools/extract_civ_data.py` (перезапустите после обновлений игры или DLC).
 - **Дерево показателей** — все показатели приводятся к индексу 0–100
   (0 — худшая цивилизация, 100 — лучшая) и группируются: *Общая сила → 8 групп
   (масштаб, экономика, наука, культура, вера, стабильность, армия, счёт) →
@@ -222,35 +197,16 @@ run_analysis.bat saves/<file>.log
   всех цивилизаций и из чего складывается ваш индекс.
 - **Панель**, графики по отдельным показателям и сводная таблица.
 - **Ползунок ходов** — пересмотр партии: графики, дерево, таблица и советник показывают состояние на любом прошлом ходу (◀ ▶ — шаг на ход, «Последний» — вернуться к текущему).
-- **Проверка на читы** — кнопка `!` на панели (или вид «Проверка на читы», или `python tools/cheat_check.py`) отмечает рывки соперников, которые правила почти не позволяют: несколько технологий или политик за ход, золото и армия из ниоткуда, юниты с опытом или повышениями не по правилам.
-- **Автосохранение партий** — фоновый архиватор (`viewer/archiver.py`, запускается при входе в Windows через `install.ps1` и вместе с панелью) сохраняет каждую игру в `saves/`, даже если окна закрыты. Игра стирает `Lua.log` при каждом запуске, поэтому без него партия после вылета пропадает.
+- **Проверка на читы** — кнопка «Проверка на читы» в окне (или `python tools/cheat_check.py`) отмечает рывки соперников, которые правила почти не позволяют: несколько технологий или политик за ход, золото и армия из ниоткуда, юниты с опытом или повышениями не по правилам.
+- **Автосохранение партий** — фоновый архиватор (`viewer/archiver.py`, запускается при входе в Windows через `install.ps1` и вместе с окном) сохраняет каждую игру в `saves/`, даже если окна закрыты. Игра стирает `Lua.log` при каждом запуске, поэтому без него партия после вылета пропадает.
 - **История игр** — выберите любую сохранённую партию в списке *Игра*, текущая
   при этом продолжает записываться в фоне.
 - Цивилизации, которых вы ещё не встретили, по умолчанию скрыты.
 
-### Как читать панель
-
-| Элемент | Что значит |
-|---|---|
-| **Заголовок** `Civ 5 · ход N` | Текущий ход. За эту строку окно перетаскивается. |
-| `-` · `o` · `+` · `x` | Одна строка (только совет) / вся панель · прозрачность (88% → 70% → без прозрачности) · открыть подробное окно · закрыть. |
-| **Ctrl+Shift+S** | Работает прямо во время игры (Windows): вся панель → одна строка → скрыть → вся панель. Позиция, режим и прозрачность запоминаются. |
-| **График** | Общая сила всех встреченных цивилизаций по ходам. Индекс 0–100: 100 — лучший среди видимых, 0 — худший. Ваша линия — толстая; строка под графиком называет текущего лидера его цветом. Падающая линия значит, что вы отстаёте, даже если ваши цифры растут. |
-| **Общая сила** | Ваш общий индекс сейчас и место (`6/6` — последний из шести). |
-| **Наука/ход** | Наука за ход и ваше место. |
-| **Золото/ход** | Чистый доход за ход, в скобках — казна, ваше место. Красным — если доход отрицательный. |
-| **Армия** | Ваша военная мощь в процентах от сильнейшего соперника. Красным — меньше 30%, жёлтым — меньше 60%. |
-| **Довольство** | Довольство империи. Жёлтым — меньше 0 (рост замедлен), красным — меньше −10 (бунты). |
-| **Города** | Число ваших городов, в скобках — среднее у соперников. |
-| **Эпоха** | Текущая эпоха; **ПИК** — сейчас окно силы уникальных юнитов вашей цивилизации. |
-| **Нижняя строка** | Самый срочный совет советника (красный — действовать сейчас, жёлтый — следить, зелёный — всё в порядке). |
-
-Цвета: зелёный — первое место или всё хорошо, жёлтый — риск, красный — последнее место или проблема, белый — между ними.
-Клик по названию строки открывает подробное окно на этой ветке дерева показателей («Эпоха» открывает советника).
 ### Требования
 
 - Civilization V с **Brave New World** (Windows или Linux: нативная версия или Proton)
-- Python 3.10+ с `tkinter`; остальные зависимости (`matplotlib`, `dearpygui`) ставятся в окружение проекта `.venv` через `setup.bat` / `setup.sh` (Fedora: `sudo dnf install python3-tkinter`, Arch: `sudo pacman -S tk`). Скрипты запуска сами используют `.venv`, а если его нет — системный Python.
+- Python 3.10+ с `tkinter`; остальные зависимости (`matplotlib`) ставятся в окружение проекта `.venv` через `setup.bat` / `setup.sh` (Fedora: `sudo dnf install python3-tkinter`, Arch: `sudo pacman -S tk`). Скрипты запуска сами используют `.venv`, а если его нет — системный Python.
 
 ### Установка — Windows
 
@@ -286,7 +242,7 @@ Steam (включая Steam из Flatpak).
 
    ```bash
    sudo apt install python3-tk python3-venv
-   chmod +x setup.sh install.sh start.sh run_analysis.sh
+   chmod +x setup.sh install.sh start.sh
    ./setup.sh
    ```
 
@@ -335,7 +291,7 @@ Steam (включая Steam из Flatpak).
 
 ### Проверка, что логгер работает
 
-Если что-то не так, панель пишет это вместо совета: логирование выключено, партия
+Если что-то не так, окно пишет это в строке состояния: логирование выключено, партия
 идёт, но логгер молчит (запустите установщик ещё раз — обновление Steam или проверка
 файлов возвращает оригинальные файлы), устаревшая версия логгера или ошибка Lua.
 Через несколько ходов новой партии можно также запустить:
@@ -355,22 +311,13 @@ Steam (включая Steam из Flatpak).
 партия хранится в `saves/` одним файлом во всех сеансах: логгер пишет идентификатор
 партии (ваша цивилизация, стартовая клетка, размер карты), и каждый ход сохраняется
 один раз, даже если вы загрузили более раннее сохранение.
-### Окно поверх игры
-
-В **эксклюзивном полноэкранном режиме** Civ 5 перекрывает все окна, и панель не может быть
-поверх неё — панель сама об этом скажет. В игре: *Настройки → Видео*, снимите **«Полноэкранный режим»**.
-Своего безрамочного режима у Civ 5 нет, поэтому на Windows панель сама убирает рамку окна
-игры и растягивает его на весь монитор (в самой игре ничего не меняется, после перезапуска
-игры всё как было). Чтобы оставить рамку, задайте `"borderless_game": false` в
-`overlay_settings.json`. На Linux для прозрачности нужен композитный оконный менеджер.
-
 ### Просмотр сохранённой партии
 
 Выберите её в списке *Игра* вверху окна (новые сверху, `▶ Текущая игра` — живые
 данные). Можно также передать файл из `saves/`:
 
 ```bash
-run_analysis.bat saves/<файл>.log
+start.bat saves/<файл>.log
 ```
 
 ### Структура проекта
@@ -383,9 +330,9 @@ run_analysis.bat saves/<файл>.log
 | `requirements.txt`, `setup.bat`, `setup.sh` | Зависимости Python и создание `.venv` |
 | `install.ps1`, `install.sh` | Установка / удаление (Windows / Linux) |
 | `tools/check_log.py` | Проверка лога: версия логгера, ошибки, отсутствующие поля |
-| `start.bat`, `start.sh` | Запуск компактной панели (Windows / Linux) |
-| `run_analysis.bat`, `run_analysis.sh` | Запуск подробного окна |
-| `viewer/overlay.py` | Компактная панель на Dear PyGui |
+| `start.bat`, `start.sh` | Запуск окна (Windows / Linux) |
+| `viewer/archiver.py` | Фоновое сохранение партий |
+| `viewer/cheats.py`, `tools/cheat_check.py` | Проверка на читы |
 
 ### Примечания
 

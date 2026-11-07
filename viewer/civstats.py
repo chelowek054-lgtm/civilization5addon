@@ -123,7 +123,7 @@ class Archive:
     the viewer or reloading an older save never duplicates anything.
     Logs from loggers before v3 have no game id and get one file per session.
 
-    archiver.py (started by the windows and at logon) and both windows can
+    archiver.py (started at logon and by the window) and the window can
     archive; a lock file lets only one of them write at a time, and another
     takes over when it exits.
     """
@@ -335,14 +335,14 @@ class Data:
 
 
 class App:
-    def __init__(self, root, path, view=None, node=None, archive=True, beside=None):
+    def __init__(self, root, path, view=None, node=None, archive=True):
         self.root = root
         # The live log is always polled (so games keep being archived) even
         # while a saved game from history is on screen.
         self.live = Data(LOG_PATH, archive=archive)
         self.data = self.live
         root.title("Civ 5 — статистика")
-        self.place_window(beside)
+        self.place_window()
 
         bar = ttk.Frame(root, padding=6)
         bar.pack(fill="x")
@@ -420,23 +420,9 @@ class App:
         self.redraw()
         root.after(REFRESH_MS, self.tick)
 
-    def place_window(self, beside):
-        """Default size, or — when opened from the overlay — right next to it,
-        filling the rest of the screen so the overlay never covers the window."""
+    def place_window(self):
         sw, sh = self.root.winfo_screenwidth(), self.root.winfo_screenheight()
-        if not beside:
-            w, h = min(1280, sw - 40), min(820, sh - 80)
-            self.root.geometry(f"{w}x{h}")
-            return
-        left, top, right, bottom = beside
-        gap = 8
-        if right + gap + 900 <= sw:          # room on the right of the overlay
-            x, w = right + gap, sw - right - 2 * gap
-        else:                                # overlay is on the right side: go left
-            x, w = gap, max(900, left - 2 * gap)
-        y = max(0, top - 40)                 # leave space for the title bar
-        h = sh - y - 60                      # keep clear of the taskbar
-        self.root.geometry(f"{w}x{h}+{x}+{y}")
+        self.root.geometry(f"{min(1280, sw - 40)}x{min(820, sh - 80)}")
 
     def refresh_games(self):
         """Fills the game list: live game first, then saves/ newest first."""
@@ -802,26 +788,24 @@ class App:
 
 def main():
     import argparse
-    ap = argparse.ArgumentParser(description="Civ 5 stats: full analysis window")
+    ap = argparse.ArgumentParser(description="Civ 5 stats window")
     ap.add_argument("log", nargs="?", default=LOG_PATH, help="Lua.log or a saved game from saves/")
     ap.add_argument("--view", help="start view, e.g. Советник, Дерево, Таблица, \"Проверка на читы\"")
     ap.add_argument("--node", help="metric-tree node to open (implies the tree view)")
     ap.add_argument("--no-archive", action="store_true",
                     help="don't archive games")
-    ap.add_argument("--beside", help="left,top,right,bottom of the overlay: open next to it")
     args = ap.parse_args()
     if sys.platform == "win32":
-        # Sharp text on scaled displays, and screen coordinates that match the overlay's
+        # Sharp text on scaled displays
         try:
             import ctypes
             ctypes.windll.shcore.SetProcessDpiAwareness(1)
         except (AttributeError, OSError):
             pass
-    beside = tuple(int(v) for v in args.beside.split(",")) if args.beside else None
     root = tk.Tk()
     if not args.no_archive:
         start_archiver()
-    App(root, args.log, view=args.view, node=args.node, archive=not args.no_archive, beside=beside)
+    App(root, args.log, view=args.view, node=args.node, archive=not args.no_archive)
     root.mainloop()
 
 

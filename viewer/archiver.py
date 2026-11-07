@@ -1,10 +1,9 @@
 """Background archiver: copies every Civ 5 game from Lua.log into saves/.
 
-Runs without a window, so games are saved even when the overlay and the
-analysis window are closed. The game recreates Lua.log on every launch (and
+Runs without a window, so games are saved even when the stats window is
+closed. The game recreates Lua.log on every launch (and
 after a crash), so whatever is not copied while the game runs is lost.
-install.ps1 starts it at logon; the overlay and the analysis window start it
-too. A second copy exits at once.
+install.ps1 starts it at logon; the stats window starts it too. A second copy exits at once.
 
     python viewer/archiver.py
 """
