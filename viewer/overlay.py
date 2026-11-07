@@ -445,12 +445,12 @@ class Overlay:
 
     def open_full(self, sender=None, app_data=None, user_data=None):
         """Opens the full analysis window, on a metric-tree node if one is given.
-        The full window only reads the log; archiving stays with the overlay."""
+        Both windows archive; a lock in saves/ lets only one of them write."""
         here = os.path.dirname(os.path.abspath(__file__))
         exe = sys.executable.replace("python.exe", "pythonw.exe") if IS_WIN else sys.executable
         if not os.path.exists(exe):
             exe = sys.executable
-        args = [exe, os.path.join(here, "civstats.py"), "--no-archive"]
+        args = [exe, os.path.join(here, "civstats.py")]
         args += ["--node", user_data] if user_data else ["--view", "Советник"]
         rect = window_rect()
         if rect:  # open the big window next to the overlay, not under it

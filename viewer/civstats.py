@@ -86,6 +86,10 @@ class Archive:
     without the log timestamp and each distinct line only once, so restarting
     the viewer or reloading an older save never duplicates anything.
     Logs from loggers before v3 have no game id and get one file per session.
+
+    The overlay and the analysis window both archive, so a game is saved
+    whichever of them is open; a lock file lets only one of them write at a
+    time, and the other takes over when it closes.
     """
 
     def __init__(self, folder):
@@ -95,6 +99,26 @@ class Archive:
         self.f = None
         self.seen = set()
         self.buffer = []
+        self.lock = None
+
+    def _owns_lock(self):
+        if self.lock:
+            return True
+        os.makedirs(self.folder, exist_ok=True)
+        f = open(os.path.join(self.folder, ".archive.lock"), "a+")
+        try:
+            if sys.platform == "win32":
+                import msvcrt
+                f.seek(0)
+                msvcrt.locking(f.fileno(), msvcrt.LK_NBLCK, 1)
+            else:
+                import fcntl
+                fcntl.flock(f, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except OSError:
+            f.close()
+            return False
+        self.lock = f   # released by the OS when this process exits
+        return True
 
     def close(self):
         if self.f:
@@ -128,6 +152,8 @@ class Archive:
         self.f = open(path, "a", encoding="utf-8")
 
     def write(self, line, rec):
+        if not self._owns_lock():  # another window is archiving
+            return
         if self.f is None:
             if not rec[2]:  # wait for the active player's line: it carries civ and game id
                 self.buffer.append(line)
@@ -724,7 +750,7 @@ def main():
     ap.add_argument("--view", help="start view, e.g. Советник, Дерево, Таблица")
     ap.add_argument("--node", help="metric-tree node to open (implies the tree view)")
     ap.add_argument("--no-archive", action="store_true",
-                    help="don't archive games (the overlay already does it)")
+                    help="don't archive games")
     ap.add_argument("--beside", help="left,top,right,bottom of the overlay: open next to it")
     args = ap.parse_args()
     if sys.platform == "win32":
