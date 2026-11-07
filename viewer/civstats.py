@@ -760,8 +760,12 @@ class App:
             for turn, _, text in sorted(flags, key=lambda f: -f[0])[:12]:
                 txt.insert("end", f"   ход {turn}: {text}\n")
         if pids and not any("topUnits" in st for p in pids for st in d.series[p].values()):
-            txt.insert("end", "\nОпыт юнитов проверяется с логгера v4: запустите install и "
-                              "перезапустите игру.\n", "yellow")
+            if d.path == LOG_PATH:
+                txt.insert("end", "\nОпыт юнитов проверяется с логгера v4: запустите install и "
+                                  "перезапустите игру.\n", "yellow")
+            else:
+                txt.insert("end", "\nВ этой записи нет опыта юнитов: она сделана логгером до v4. "
+                                  "Он появится в партиях, сыгранных после обновления.\n", "yellow")
         txt.configure(state="disabled")
 
     @staticmethod
