@@ -324,6 +324,10 @@ class Overlay:
                         dpg.add_button(label="+", width=20, tag="btn_full", callback=self.open_full)
                         with dpg.tooltip(dpg.last_item()):
                             dpg.add_text("Подробный анализ")
+                        dpg.add_button(label="!", width=20, tag="btn_cheats",
+                                       callback=lambda: self.open_full(view="Проверка на читы"))
+                        with dpg.tooltip(dpg.last_item()):
+                            dpg.add_text("Проверка соперников на читы")
                         dpg.add_button(label="x", width=20, tag="btn_close",
                                        callback=lambda: dpg.stop_dearpygui())
 
@@ -443,7 +447,7 @@ class Overlay:
         set_alpha(ALPHAS[self.alpha_i])
         self.save()
 
-    def open_full(self, sender=None, app_data=None, user_data=None):
+    def open_full(self, sender=None, app_data=None, user_data=None, view="Советник"):
         """Opens the full analysis window, on a metric-tree node if one is given.
         Both windows archive; a lock in saves/ lets only one of them write."""
         here = os.path.dirname(os.path.abspath(__file__))
@@ -451,7 +455,7 @@ class Overlay:
         if not os.path.exists(exe):
             exe = sys.executable
         args = [exe, os.path.join(here, "civstats.py")]
-        args += ["--node", user_data] if user_data else ["--view", "Советник"]
+        args += ["--node", user_data] if user_data else ["--view", view]
         rect = window_rect()
         if rect:  # open the big window next to the overlay, not under it
             args += ["--beside", ",".join(map(str, rect))]

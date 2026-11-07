@@ -37,6 +37,7 @@ GameInfo = {
   Policies = rows({ {ID=0}, {ID=1} }),
   PolicyBranchTypes = rows({ {ID=0}, {ID=1} }),
   GameSpeeds = rows({ {ID=0, Type="GAMESPEED_STANDARD", GrowthPercent=100} }),
+  Units = rows({ {ID=0, Type="UNIT_ARCHER"}, {ID=1, Type="UNIT_AZTEC_JAGUAR"} }),
   Worlds = rows({ {ID=0, Type="WORLDSIZE_STANDARD", DefaultPlayers=8} }),
 }
 Game = { GetGameTurn=function() return 7 end, GetActivePlayer=function() return 0 end, GetActiveTeam=function() return 0 end, GetGameSpeedType=function() return 0 end }
@@ -52,6 +53,9 @@ local function player(id, cities)
   p.GetTeam = function() return id end
   p.GetCivilizationType = function() return id end
   p.Cities = function() local i = 0 return function() i = i + 1 return cities[i] end end
+  local units = { { GetID=function() return 7 end, GetUnitType=function() return 0 end, GetLevel=function() return 3 end, GetExperience=function() return 45 end },
+                  { GetID=function() return 8 end, GetUnitType=function() return 1 end, GetLevel=function() return 1 end, GetExperience=function() return 0 end } }
+  p.Units = function() local i = 0 return function() i = i + 1 return units[i] end end
   p.GetStartingPlot = function() return plot(10 + id, 20) end
   p.HasPolicy = function(self, pid) return pid == 0 end
   p.IsPolicyBranchUnlocked = function(self, b) return b == 0 end
@@ -71,7 +75,7 @@ if f is None or isinstance(f, tuple) and f[0] is None:
 L.execute("FIRE()")
 out = list(L.globals().OUT.values())
 text = "\n".join(out)
-for need in ("CIVSTATS_START|7|v=3", "loggerVersion=3", "gameId=ROME-10-20-80x52", "techIds=0,1",
+for need in ("CIVSTATS_START|7|v=4", "loggerVersion=4", "maxUnitLevel=3", "topUnits=7:ARCHER:3:45", "gameId=ROME-10-20-80x52", "techIds=0,1",
              "dist=6", "war=1", "speed=GAMESPEED_STANDARD"):
     assert need in text, f"missing in logger output: {need}"
 assert "CIVSTATS_ERROR" not in text, text

@@ -49,6 +49,7 @@ METRICS = [
 DASHBOARD = ["score", "science", "goldRate", "military", "culture", "population"]
 ARCHIVE_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "saves")
 LIVE_LABEL = "▶ Текущая игра"
+CHEATS_VIEW = "Проверка на читы"
 REFRESH_MS = 2000
 
 
@@ -196,7 +197,7 @@ def normalize(line):
     return line[i:].rstrip("\r\n") if i >= 0 else line.rstrip("\r\n")
 
 
-LOGGER_VERSION = 3   # must match LOGGER_VERSION in CivStatsLogger.lua
+LOGGER_VERSION = 4   # must match LOGGER_VERSION in CivStatsLogger.lua
 INGAME_MARKERS = ("TopPanel:", "NotificationPanel:", "GenericPopup:", "InGame:")
 
 
@@ -353,10 +354,12 @@ class App:
         self.game_box.bind("<<ComboboxSelected>>", lambda e: self.open_game())
         ttk.Label(bar, text="Вид:").pack(side="left")
         self.view = tk.StringVar(value="Советник")
-        choices = ["Советник", "Дерево", "Панель"] + [label for _, label in METRICS] + ["Таблица"]
+        choices = ["Советник", "Дерево", "Панель"] + [label for _, label in METRICS] + ["Таблица", CHEATS_VIEW]
         cb = ttk.Combobox(bar, textvariable=self.view, values=choices, state="readonly", width=24)
         cb.pack(side="left", padx=6)
         cb.bind("<<ComboboxSelected>>", lambda e: self.redraw())
+        ttk.Button(bar, text=CHEATS_VIEW, command=lambda: (self.view.set(CHEATS_VIEW), self.redraw())
+                   ).pack(side="left", padx=6)
         self.show_all = tk.BooleanVar(value=False)
         ttk.Checkbutton(bar, text="Показывать незнакомые цивилизации", variable=self.show_all,
                         command=self.redraw).pack(side="left", padx=12)
@@ -522,6 +525,10 @@ class App:
             if not self.compact.get():
                 self.canvas.get_tk_widget().pack(side="left", fill="both", expand=True)
             self.draw_advisor()
+            return
+        if self.view.get() == CHEATS_VIEW:
+            self.advice_frame.pack(side="left", fill="both", expand=True)
+            self.draw_cheats()
             return
         if self.view.get() == "Таблица":
             self.table.pack(fill="both", expand=True)
@@ -742,6 +749,35 @@ class App:
         self.fig.tight_layout()
         self.canvas.draw_idle()
 
+    def draw_cheats(self):
+        """Signs of cheating by every rival, from the turns recorded so far."""
+        import cheats   # imports this module, so not at the top
+        d = self.shown
+        pids = [p for p in d.visible(self.show_all.get()) if p != d.me]
+        report = cheats.analyse_series({p: d.series[p] for p in pids}, d.names, d.me)
+        txt = self.advice
+        txt.configure(state="normal")
+        txt.delete("1.0", "end")
+        txt.insert("end", "Проверка соперников на читы\n", "h")
+        txt.insert("end", "Ищем рывки, которые правила почти не позволяют: несколько технологий или "
+                          "политик за ход, золото и армия из ниоткуда, юниты с опытом или уровнем "
+                          "не по правилам. У каждой отметки бывает честная причина (великий учёный, "
+                          "ветка политик, захват города, генерал), поэтому смотрите на игроков "
+                          "с многими отметками.\n")
+        if not report:
+            txt.insert("end", "\nСоперников пока нет: дождитесь первого хода.\n")
+        level = {"ПОДОЗРИТЕЛЬНО": "red", "стоит присмотреться": "yellow", "чисто": "green"}
+        for score, name, turns, flags in report:
+            v = cheats.verdict(score, turns)
+            txt.insert("end", "\n● ", level[v])
+            txt.insert("end", f"{name}: {v} — {len(flags)} отметок за {turns} ходов\n", "h" if flags else "")
+            for turn, _, text in sorted(flags, key=lambda f: -f[0])[:12]:
+                txt.insert("end", f"   ход {turn}: {text}\n")
+        if pids and not any("topUnits" in st for p in pids for st in d.series[p].values()):
+            txt.insert("end", "\nОпыт юнитов проверяется с логгера v4: запустите install и "
+                              "перезапустите игру.\n", "yellow")
+        txt.configure(state="disabled")
+
     @staticmethod
     def style_axis(ax):
         ax.grid(alpha=0.3)
@@ -768,7 +804,7 @@ def main():
     import argparse
     ap = argparse.ArgumentParser(description="Civ 5 stats: full analysis window")
     ap.add_argument("log", nargs="?", default=LOG_PATH, help="Lua.log or a saved game from saves/")
-    ap.add_argument("--view", help="start view, e.g. Советник, Дерево, Таблица")
+    ap.add_argument("--view", help="start view, e.g. Советник, Дерево, Таблица, \"Проверка на читы\"")
     ap.add_argument("--node", help="metric-tree node to open (implies the tree view)")
     ap.add_argument("--no-archive", action="store_true",
                     help="don't archive games")

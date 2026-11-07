@@ -3,7 +3,7 @@
 -- Line format: CIVSTATS|turn|playerId|isMe|met|civName|key=value;key=value;...
 
 -- Bump when the logged fields change; the viewer warns about older loggers.
-LOGGER_VERSION = 3
+LOGGER_VERSION = 4
 
 local function safe(f, ...)
 	local ok, v = pcall(f, ...)
@@ -94,6 +94,31 @@ local function collect(p, pTeam)
 	return s
 end
 
+-- Unit experience, for the cheat check: the most experienced units of every
+-- player as id:type:level:xp, so the viewer can follow one unit turn to turn.
+local TOP_UNITS = 5
+local function veterans(p)
+	local list, maxLevel, maxXp, promoted = {}, 0, 0, 0
+	for u in p:Units() do
+		local level = safe(u.GetLevel, u)
+		local xp = safe(u.GetExperience, u)
+		if level > maxLevel then maxLevel = level end
+		if xp > maxXp then maxXp = xp end
+		if level > 1 then promoted = promoted + 1 end
+		if xp > 0 then
+			local info = GameInfo.Units[u:GetUnitType()]
+			list[#list + 1] = { id = u:GetID(), type = info and info.Type:gsub("^UNIT_", "") or "?", level = level, xp = xp }
+		end
+	end
+	table.sort(list, function(a, b) return a.xp > b.xp end)
+	local top = {}
+	for n = 1, math.min(TOP_UNITS, #list) do
+		local v = list[n]
+		top[n] = string.format("%d:%s:%d:%d", v.id, v.type, v.level, v.xp)
+	end
+	return { maxUnitLevel = maxLevel, maxUnitXp = maxXp, promotedUnits = promoted, topUnits = table.concat(top, ",") }
+end
+
 -- Relation of a rival to the active player. Distance only counts rival cities
 -- the active player has already revealed on the map, so nothing hidden leaks.
 --   dist = tiles between your nearest city and their nearest known city (-1 = none known)
@@ -181,6 +206,7 @@ function LogPlayer(turn, i, p, me, myTeam)
 			local name = Locale.ConvertTextKey(GameInfo.Civilizations[p:GetCivilizationType()].ShortDescription)
 			local parts = {}
 			local s = collect(p, Teams[team])
+			for k, v in pairs(veterans(p)) do s[k] = v end
 			if i ~= me then
 				for k, v in pairs(relation(Players[me], myTeam, p, team)) do s[k] = v end
 			else

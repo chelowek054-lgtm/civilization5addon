@@ -26,6 +26,7 @@ and other players don't need to install it.
   see it per turn for every civ, plus what your own index is made of.
 - **Dashboard**, single-metric graphs and a summary table.
 - **Turn slider** — replay your game: graphs, tree, table and advisor show the state on any past turn (◀ ▶ step a turn, *Последний* returns to the latest).
+- **Cheat check** — the `!` button on the overlay (or the «Проверка на читы» view / `python tools/cheat_check.py`) flags rivals' jumps the rules hardly allow: several techs or policies a turn, gold or army out of nowhere, units with more experience or promotions than combat gives.
 - **Automatic game archive** — a background archiver (`viewer/archiver.py`, started at logon by `install.ps1` and by the overlay) saves every game to `saves/` even when no window is open. Civ 5 wipes `Lua.log` on each launch, so this is what keeps a game after a crash.
 - **Game history** — pick any saved game from the *Игра* (Game) list to analyse it;
   the current game keeps being recorded in the background.
@@ -221,6 +222,7 @@ run_analysis.bat saves/<file>.log
   всех цивилизаций и из чего складывается ваш индекс.
 - **Панель**, графики по отдельным показателям и сводная таблица.
 - **Ползунок ходов** — пересмотр партии: графики, дерево, таблица и советник показывают состояние на любом прошлом ходу (◀ ▶ — шаг на ход, «Последний» — вернуться к текущему).
+- **Проверка на читы** — кнопка `!` на панели (или вид «Проверка на читы», или `python tools/cheat_check.py`) отмечает рывки соперников, которые правила почти не позволяют: несколько технологий или политик за ход, золото и армия из ниоткуда, юниты с опытом или повышениями не по правилам.
 - **Автосохранение партий** — фоновый архиватор (`viewer/archiver.py`, запускается при входе в Windows через `install.ps1` и вместе с панелью) сохраняет каждую игру в `saves/`, даже если окна закрыты. Игра стирает `Lua.log` при каждом запуске, поэтому без него партия после вылета пропадает.
 - **История игр** — выберите любую сохранённую партию в списке *Игра*, текущая
   при этом продолжает записываться в фоне.
